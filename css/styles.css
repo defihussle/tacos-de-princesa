@@ -705,9 +705,9 @@ p:last-child {
 /* ==========================================================================
    7. Home hero
    Full-viewport stage for the layered Princesa art (images/hero/). No copy:
-   the illustration is the whole hero, centred under the nav. js/hero.js pins
-   the hero for the first screen of scrolling and moves the layers apart for
-   a 2.5D parallax (GSAP ScrollTrigger). Without JS, or with reduced motion,
+   the illustration is the whole hero, centred under the nav. As the hero
+   scrolls away (no pin), js/hero.js moves the layers apart for a 2.5D
+   parallax (GSAP ScrollTrigger). Without JS, or with reduced motion,
    the art simply stays still.
    ========================================================================== */
 .hero {

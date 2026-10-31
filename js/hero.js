@@ -5,8 +5,8 @@
    index.html). Without them, or with prefers-reduced-motion, it does
    nothing and the hero stays still.
 
-   The hero is pinned for one screen of scrolling while the layers move
-   apart (scrubbed, so they follow the scrollbar), then scrolls away.
+   The hero scrolls normally (no pin); while it scrolls out of view the
+   layers move apart (scrubbed, so they follow the scrollbar).
    Tune the moves in LAYER_MOTION below.
    ========================================================================== */
 
@@ -18,7 +18,7 @@
 
   gsap.registerPlugin(ScrollTrigger);
 
-  // Each move runs over the whole pinned scroll. yPercent/xPercent are a
+  // Each move runs over the hero's scroll out of view. yPercent/xPercent are a
   // percentage of the layer (the art frame), so they scale with the screen;
   // on desktop 1% of the frame is roughly 9px.
   //
@@ -40,9 +40,9 @@
   // Hair sway and wave, as keyframes across the scroll (starts at rest)
   const HAIR_SWAY = { rotation: [0, -2.5, 0.6], skewX: [0, 1.2, -0.4] };
 
-  const PIN_LENGTH = '+=100%'; // how long the hero stays pinned (one screen)
-  const SCRUB = 0.8;           // seconds the layers take to catch up
-  const CUE_HIDE_AFTER = 8;    // px scrolled before the "Scroll" cue fades
+  const SCROLL_END = 'bottom top'; // animation ends as the hero's bottom leaves the top
+  const SCRUB = 0.8;               // seconds the layers take to catch up
+  const CUE_HIDE_AFTER = 8;        // px scrolled before the "Scroll" cue fades
 
   const layer = function (name) {
     return hero.querySelector('[data-hero-layer="' + name + '"]');
@@ -50,18 +50,16 @@
   const character = hero.querySelector('[data-hero-character]');
   const scrollCue = hero.querySelector('[data-hero-scroll]');
 
-  // gsap.matchMedia reverts everything (unpins, clears transforms) if the
-  // user switches reduced motion on while the page is open.
+  // gsap.matchMedia reverts everything (kills triggers, clears transforms)
+  // if the user switches reduced motion on while the page is open.
   gsap.matchMedia().add('(prefers-reduced-motion: no-preference)', function () {
     const tl = gsap.timeline({
       defaults: { ease: 'none', duration: 1 },
       scrollTrigger: {
         trigger: hero,
         start: 'top top',
-        end: PIN_LENGTH,
-        pin: true,
-        scrub: SCRUB,
-        anticipatePin: 1
+        end: SCROLL_END,
+        scrub: SCRUB
       }
     });
 
@@ -71,8 +69,7 @@
       .to(layer('hair'), { keyframes: HAIR_SWAY, ease: 'sine.inOut' }, 0);
 
     // Not scrubbed, so the cue goes as soon as scrolling starts and comes
-    // back at the very top. Measured from the pin's start (a trigger on the
-    // pinned hero itself would only start after the pin), with explicit
+    // back at the very top. Measured from the parallax start, with explicit
     // targets because the cue may still be mid fade-in from CSS.
     if (scrollCue) {
       const fadeCue = function (alpha) {
