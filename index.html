@@ -21,6 +21,12 @@
 
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/main.js" defer></script>
+
+  <!-- Home hero scroll animation: GSAP + ScrollTrigger, then js/hero.js.
+       If the CDN is unreachable the hero just stays still. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+  <script src="js/hero.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -61,33 +67,26 @@
   <main id="main">
 
     <!-- ===== HERO ===================================================== -->
-    <section class="hero scallop" aria-labelledby="hero-title">
+    <section class="hero scallop" aria-labelledby="hero-title" data-hero>
+      <!-- The page heading, for screen readers and search engines only:
+           the illustration is the whole visible hero. -->
+      <h1 class="visually-hidden" id="hero-title">Tacos De Princesa</h1>
+
       <!-- Layered hero art. All layers share one 923x900 frame (.hero__stage)
            so they stay aligned at any size. Stack, bottom to top:
-           bg -> base (face) -> hair. Base and hair are grouped in
-           .hero__character so they can move together. Animation hooks are
-           in styles.css §7 ("Motion hooks"). -->
+           bg -> base (face) -> hair (a cut-out, wall removed). js/hero.js
+           moves each [data-hero-layer] on scroll; see styles.css §7. -->
       <div class="hero__layers" aria-hidden="true">
         <div class="hero__stage">
-          <img class="hero__layer hero__layer--bg" src="images/hero/pricessa-bg.png" alt="" width="920" height="900">
-          <div class="hero__character">
-            <img class="hero__layer hero__layer--base" src="images/hero/pricessa-base.png" alt="" width="923" height="900">
-            <img class="hero__layer hero__layer--hair" src="images/hero/pricessa-hair.png" alt="" width="923" height="900">
+          <img class="hero__layer hero__layer--bg" src="images/hero/pricessa-bg.png" alt="" width="920" height="900" fetchpriority="high" data-hero-layer="bg">
+          <div class="hero__character anim-float" data-hero-character>
+            <img class="hero__layer hero__layer--base" src="images/hero/pricessa-base.png" alt="" width="923" height="900" fetchpriority="high" data-hero-layer="base">
+            <img class="hero__layer hero__layer--hair" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900" fetchpriority="high" data-hero-layer="hair">
           </div>
         </div>
       </div>
 
-      <div class="container hero__content">
-        <p class="eyebrow">Taqueria &middot; Downtown Toronto</p>
-        <h1 class="hero__title" id="hero-title">Tacos De <span>Princesa</span></h1>
-        <p class="hero__text">Fresh tacos in the PATH at 150&nbsp;King&nbsp;St&nbsp;W, near St.&nbsp;Andrew Station. One&nbsp;York&nbsp;Street opening soon.</p>
-        <div class="btn-group">
-          <a class="btn btn--primary" href="menu.html#order" data-order-link>Order Now</a>
-          <a class="btn btn--outline-dark" href="menu.html">View Menu</a>
-        </div>
-      </div>
-
-      <a class="hero__scroll" href="#about">Scroll</a>
+      <a class="hero__scroll" href="#about" data-hero-scroll>Scroll</a>
     </section>
 
     <!-- ===== ABOUT TEASER ============================================ -->

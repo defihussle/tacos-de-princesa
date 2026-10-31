@@ -704,29 +704,25 @@ p:last-child {
 
 /* ==========================================================================
    7. Home hero
-   Full-viewport stage: the layered Princesa art (images/hero/) is the main
-   visual, with the copy overlaid on top of it. Mobile: copy at the top,
-   art scaled down and anchored to the bottom. Desktop (900px+): art fills
-   the height, centre-right; copy overlaid on the left.
+   Full-viewport stage for the layered Princesa art (images/hero/). No copy:
+   the illustration is the whole hero, centred under the nav. js/hero.js pins
+   the hero for the first screen of scrolling and moves the layers apart for
+   a 2.5D parallax (GSAP ScrollTrigger). Without JS, or with reduced motion,
+   the art simply stays still.
    ========================================================================== */
 .hero {
   --hero-wall: #ececec; /* average colour of the wall texture in the art */
   position: relative;
   isolation: isolate; /* keeps negative z-index layers inside the hero */
-  display: grid;
-  place-items: start center;
   height: 100vh;
   height: 100svh; /* avoids mobile browser-chrome jump where supported */
-  min-height: 47rem; /* phones: room for the copy plus the art below it */
-  padding: calc(var(--header-h) + 2rem) 0 3rem;
-  overflow: hidden;
+  min-height: 30rem;
+  overflow: hidden; /* parallax moves stay inside the hero */
   background: var(--hero-wall);
-  color: var(--dark);
-  text-align: center;
 }
 
 /* Dark band behind the transparent header so the white logo and nav links
-   stay legible on the light wall. Paints above the art, below the copy. */
+   stay legible on the light wall. Paints above the art. */
 .hero::before {
   content: "";
   position: absolute;
@@ -745,44 +741,44 @@ p:last-child {
 }
 
 /* --- Art layers -----------------------------------------------------------
-   .hero__layers     Full-hero overlay behind the copy. A size container, so
-                     the stage can scale in cq units.
+   .hero__layers     The space under the header (above the scalloped edge).
+                     A size container, so the stage can scale in cq units.
    .hero__stage      The 923x900 frame every layer shares, so the layers stay
-                     pixel-aligned at any size. Its edges fade into
-                     --hero-wall.
-   .hero__character  Groups base + hair. The face and the hair's face-hole
-                     are cut to fit each other exactly, so move them
-                     together; shifting the hair alone by more than ~2px
-                     opens gaps around the face.
+                     pixel-aligned at any size. Sized and placed by the
+                     character's box inside the frame (x 98-760, y 126-823),
+                     so the character fills the space without being cropped;
+                     the empty wall margins may run off-screen.
+   .hero__character  Groups base + hair and holds the seam backing. The face
+                     and the hair's face-hole are cut to fit each other, so
+                     they move together; the hair only adds a small sway.
    .hero__layer      One PNG filling the frame. Stack: bg < base < hair.
-   Everything is placed with inset/width/height only, so transform,
-   translate, rotate and scale stay free for animation. */
+                     The hair is a cut-out (wall removed), so it can move
+                     freely over the bg.
+   Everything is placed with inset/width/height only, so transform stays
+   free for animation. */
 .hero__layers {
   position: absolute;
-  inset: 0;
+  inset: var(--header-h) 0 1.5rem;
   z-index: -2; /* under the header band (::before, -1) */
   container-type: size;
 }
 
 .hero__stage {
-  /* Mobile: centred and anchored to the bottom, sized to the space left
-     under the copy block (~28rem incl. header), within a sensible min/max.
-     The max may crop the frame's empty side margins. */
-  --stage-w: clamp(18rem * 923 / 900, (100cqh - 28rem) * 923 / 900, 120cqw);
-  --stage-fade:
-    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
-    linear-gradient(to bottom, transparent 1%, #000 8%, #000 95%, transparent);
+  /* Character height: most of the height, or on phones as wide as it can
+     be while the scroll sway (up to ~3.5% of its width to the right, ~0.6%
+     to the left) still never crops the hair. Character is 662x697 in the
+     frame, so this is ~96% of the width at rest. */
+  --char-h: min(88cqh, 102cqw - 0.5rem);
+  --stage-h: calc(var(--char-h) * 900 / 697);
+  --stage-w: calc(var(--stage-h) * 923 / 900);
   position: absolute;
-  left: calc(50% - var(--stage-w) / 2);
-  bottom: 0;
+  /* Centre the character (46.5% / 52.7% into the frame), not the frame,
+     nudged slightly left to balance the hair's rightward sway */
+  left: calc(50% - var(--stage-w) * 0.471);
+  top: calc(50% - var(--stage-h) * 0.527);
   width: var(--stage-w);
-  height: calc(var(--stage-w) * 900 / 923);
-  /* Feather the frame into the hero colour. The top fade starts at 1% to
-     hide a 4px dark strip baked into the top of the bg and hair PNGs. */
-  -webkit-mask-image: var(--stage-fade);
-  -webkit-mask-composite: source-in;
-  mask-image: var(--stage-fade);
-  mask-composite: intersect;
+  height: var(--stage-h);
+  animation: hero-intro 2.2s cubic-bezier(0.25, 1, 0.5, 1) both; /* easeOutQuart: long, soft landing */
 }
 
 .hero__character,
@@ -791,15 +787,23 @@ p:last-child {
   inset: 0;
   width: 100%;
   height: 100%;
-  translate: var(--parallax-x, 0) var(--parallax-y, 0); /* see Motion hooks */
 }
 
 /* The bg PNG is the same wall cropped 3px further in from the left (920px
-   wide vs 923px), so offset it to line up pixel for pixel. */
+   wide vs 923px), so offset it to line up pixel for pixel. Its edges are
+   feathered into --hero-wall; the top fade starts at 1% to hide a 4px dark
+   strip baked into the top of the PNG. */
 .hero__layer--bg {
+  --bg-fade:
+    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
+    linear-gradient(to bottom, transparent 1%, #000 8%, #000 95%, transparent);
   z-index: 0;
   left: calc(100% * 3 / 923);
   width: calc(100% * 920 / 923);
+  -webkit-mask-image: var(--bg-fade);
+  -webkit-mask-composite: source-in;
+  mask-image: var(--bg-fade);
+  mask-composite: intersect;
 }
 
 .hero__character {
@@ -808,14 +812,18 @@ p:last-child {
 
 /* The face and hair cut-outs leave hairline gaps where the light bg would
    show through. This dark backing sits under the face, sized to the hair's
-   face-hole; the opaque hair hides it everywhere else, so it only shows in
-   those gaps, in the hair colour from the original artwork. It stops just
-   above the chest, where the gaps are skin-toned in the original. */
+   face-hole, so at rest it only shows in those gaps, in the hair colour
+   from the original artwork. It reaches past the face-hole on the top and
+   left (still hidden under the hair) so the gaps stay dark while the hair
+   sways on scroll; the hair is too thin on the right to go further there.
+   It stops just above the chest, where the gaps are skin-toned in the
+   original. */
 .hero__character::before {
   content: "";
   position: absolute;
-  inset: 27% 23.5% 25.6% 31.5%;
+  inset: 23% 23.5% 25.6% 28%;
   background: #2f1e20;
+  clip-path: polygon(0 0, 80% 0, 100% 15%, 100% 100%, 0 100%); /* clear of the big rose's edge */
 }
 
 .hero__layer--base {
@@ -824,19 +832,17 @@ p:last-child {
 
 .hero__layer--hair {
   z-index: 2;
+  transform-origin: 50% 85%; /* sways from near the bottom centre */
 }
 
-/* --- Motion hooks (opt-in) ------------------------------------------------
-   Idle loops: add a class to .hero__character or a .hero__layer, e.g.
-   <div class="hero__character anim-float">. Keyframes start and end at rest,
-   so the reduced-motion rules in §16 leave the art still.
-   Parallax: set --parallax-x / --parallax-y on any layer from JS, e.g.
-   el.style.setProperty('--parallax-y', '12px'). They drive the `translate`
-   property, which adds to the idle `transform` instead of replacing it.
-   Note: the hair PNG has the wall baked in and covers the bg everywhere
-   except the face, so the bg only shows when the character moves. */
+/* --- Motion -----------------------------------------------------------------
+   On load: the stage fades and settles in (hero-intro), then the character
+   floats gently (.anim-float on .hero__character). The float animates the
+   `translate` property, which adds to the `transform` that js/hero.js sets
+   on scroll, so the two never fight. Keyframes end at rest, so the
+   reduced-motion rules in §16 leave the art still. */
 .anim-float {
-  animation: hero-float 7s ease-in-out infinite;
+  animation: hero-float 7s ease-in-out 2.2s infinite; /* starts once hero-intro ends */
 }
 
 .anim-sway {
@@ -844,57 +850,29 @@ p:last-child {
   animation: hero-sway 9s ease-in-out infinite;
 }
 
-@keyframes hero-float {
-  0%, 100% { transform: none; }
-  50%      { transform: translateY(-0.8%); }
+/* Fades in over the first half while it rises and settles over the whole */
+@keyframes hero-intro {
+  from {
+    opacity: 0;
+    transform: translateY(1.5%) scale(1.04);
+  }
+  55% {
+    opacity: 1;
+  }
 }
 
-/* Keep this tiny on the hair alone: 0.25deg is about 2px at the face */
+@keyframes hero-float {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -0.8%; }
+}
+
 @keyframes hero-sway {
   0%, 100% { transform: none; }
   25%      { transform: rotate(0.25deg); }
   75%      { transform: rotate(-0.25deg); }
 }
 
-/* --- Copy (overlaid on the art) --- */
-.hero__content {
-  position: relative;
-  isolation: isolate;
-  max-width: 860px;
-}
-
-/* Soft wall-coloured glow behind the copy, so it stays readable wherever it
-   overlaps the art. Invisible over plain wall. */
-.hero__content::before {
-  content: "";
-  position: absolute;
-  inset: -2.5rem -1.5rem;
-  z-index: -1;
-  background: radial-gradient(closest-side, rgba(236, 236, 236, 0.88) 55%, rgba(236, 236, 236, 0)); /* --hero-wall */
-  pointer-events: none;
-}
-
-.hero__title {
-  margin-bottom: 1.25rem;
-}
-
-.hero__title span {
-  display: block;
-  color: var(--primary);
-}
-
-.hero__text {
-  max-width: 520px;
-  margin: 0 auto 2rem;
-  font-size: 1.05rem;
-  color: var(--text-dark);
-}
-
-.hero .btn-group {
-  justify-content: center;
-}
-
-/* Animated "scroll" cue */
+/* Animated "scroll" cue (hidden by js/hero.js once scrolling starts) */
 .hero__scroll {
   position: absolute;
   left: 50%;
@@ -910,6 +888,13 @@ p:last-child {
   color: var(--muted);
   transform: translateX(-50%);
   transition: color var(--speed) var(--ease);
+  /* Arrives once the art has mostly settled. `backwards` only holds it
+     hidden during the delay, so js/hero.js can still fade it out after. */
+  animation: hero-cue-in 0.8s ease 1.6s backwards;
+}
+
+@keyframes hero-cue-in {
+  from { opacity: 0; }
 }
 
 .hero__scroll:hover {
@@ -919,7 +904,7 @@ p:last-child {
 .hero__scroll::after {
   content: "";
   width: 1px;
-  height: 40px;
+  height: 32px;
   background: currentColor;
   animation: scroll-cue 2.2s var(--ease) infinite;
 }
@@ -931,72 +916,15 @@ p:last-child {
   100% { transform: scaleY(0); transform-origin: bottom; }
 }
 
-/* Phones (the art fills the bottom) and short screens: drop the cue so it
-   never collides with the art or the buttons */
-@media (max-width: 899px), (max-height: 680px) {
+/* Short screens: no room under the art */
+@media (max-height: 600px) {
   .hero__scroll {
     display: none;
   }
 }
 
-/* Desktop: art fills the hero height, centre-right; copy overlaid on the
-   left, aligned with the logo */
+/* Desktop: bottom-left, aligned with the logo, clear of the hair */
 @media (min-width: 900px) {
-  .hero {
-    place-items: center;
-    min-height: 560px;
-    padding: var(--header-h) 0 3rem;
-    text-align: left;
-  }
-
-  .hero__layers {
-    /* Right edge of the copy column (container gutter + 26rem text + gap) */
-    --copy-edge: calc((100cqw - min(100cqw - 4rem, var(--container))) / 2 + 27.5rem);
-  }
-
-  /* Readability: the wall colour fades in from the left, full height, so
-     the art dissolves into the wall behind the copy. Above the art, below
-     the copy (replaces the mobile glow). */
-  .hero__layers::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to right,
-      rgba(236, 236, 236, 0.92) 0,                          /* --hero-wall */
-      rgba(236, 236, 236, 0.92) calc(var(--copy-edge) - 4rem),
-      rgba(236, 236, 236, 0) calc(var(--copy-edge) + 4rem)
-    );
-    pointer-events: none;
-  }
-
-  .hero__stage {
-    --stage-w: min(100cqh * 923 / 900, 95cqw);
-    /* Centre the art at 58% of the width, but never let the face (which
-       starts 33.6% into the frame) slide under the copy */
-    left: max(58cqw - var(--stage-w) / 2, var(--copy-edge) - var(--stage-w) * 0.336);
-    top: calc(50% - var(--stage-w) * 450 / 923);
-    bottom: auto;
-  }
-
-  .hero__content {
-    max-width: none;
-  }
-
-  .hero__content::before {
-    display: none;
-  }
-
-  .hero__text {
-    max-width: 26rem;
-    margin-inline: 0;
-  }
-
-  .hero .btn-group {
-    justify-content: flex-start;
-  }
-
-  /* Bottom-left under the copy, clear of the hair */
   .hero__scroll {
     left: max(2rem, (100% - var(--container)) / 2);
     transform: none;
