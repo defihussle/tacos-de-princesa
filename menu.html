@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Menu | Tacos De Princesa</title>
+  <meta name="description" content="The Tacos De Princesa menu: tacos, bowls, sides and drinks, with online ordering for pickup at 150 King St W in Toronto's PATH.">
+  <meta name="theme-color" content="#282936">
+
+  <!-- Favicon -->
+  <link rel="icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+
+  <!-- Marks that JS is available (used by reveal-on-scroll styles). Keep it first. -->
+  <script>document.documentElement.classList.add('js');</script>
+
+  <!-- Fonts: Bebas Neue (headings) + Montserrat (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap">
+
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- =====================================================================
+       SITE HEADER (shared). Copy any change to all four pages; only the
+       aria-current="page" link differs from page to page.
+       "Order Now" links carry data-order-link: set the real ordering URL
+       once in js/main.js (ORDER_URL) and they all update.
+       ===================================================================== -->
+  <header class="site-header" data-header>
+    <div class="container site-header__inner">
+      <a class="brand" href="index.html">
+        <img src="images/logo-light.png" alt="Tacos De Princesa home" width="287" height="44">
+      </a>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu" data-nav-toggle>
+        <span class="nav-toggle__bar"></span>
+        <span class="nav-toggle__bar"></span>
+        <span class="nav-toggle__bar"></span>
+      </button>
+
+      <nav class="site-nav" id="site-nav" aria-label="Main" data-nav>
+        <ul class="site-nav__list">
+          <li><a class="site-nav__link" href="index.html">Home</a></li>
+          <li><a class="site-nav__link" href="menu.html" aria-current="page">Menu</a></li>
+          <li><a class="site-nav__link site-nav__link--cta" href="menu.html#order" data-order-link>Order Now</a></li>
+          <li><a class="site-nav__link" href="catering.html">Catering</a></li>
+          <li><a class="site-nav__link" href="contact.html">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-backdrop" data-nav-backdrop></div>
+    </div>
+  </header>
+  <!-- /SITE HEADER -->
+
+  <main id="main">
+
+    <!-- ===== PAGE HERO ================================================ -->
+    <section class="page-hero scallop">
+      <div class="container">
+        <p class="eyebrow">Nuestro men&uacute;</p>
+        <h1 class="page-hero__title">Menu</h1>
+        <p class="page-hero__lead">Tacos, bowls, sides and aguas frescas, made fresh every day in the PATH at 150 King St W.</p>
+      </div>
+    </section>
+
+    <!-- ===== MENU =====================================================
+         Placeholder items and prices: replace with the real menu.
+         Each category is a .menu-category; each dish is a .menu-item.
+         ================================================================ -->
+    <section class="section">
+      <div class="container">
+
+        <nav class="menu-nav" aria-label="Menu categories">
+          <a class="chip" href="#tacos">Tacos</a>
+          <a class="chip" href="#bowls">Bowls &amp; Burritos</a>
+          <a class="chip" href="#sides">Sides</a>
+          <a class="chip" href="#drinks">Drinks</a>
+          <a class="chip" href="#order">Order Online</a>
+        </nav>
+
+        <!-- Tacos -->
+        <section class="menu-category" id="tacos" aria-labelledby="tacos-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="tacos-title">Tacos</h2>
+            <p class="menu-category__note">Served on corn tortillas &middot; priced per taco</p>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Al Pastor <span class="tag">Signature</span></h3>
+                <span class="menu-item__price">$5.50</span>
+              </div>
+              <p class="menu-item__desc">Marinated pork, grilled pineapple, onion, cilantro.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Birria</h3>
+                <span class="menu-item__price">$6.00</span>
+              </div>
+              <p class="menu-item__desc">Slow-braised beef, melted cheese, consom&eacute; for dipping.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Carnitas</h3>
+                <span class="menu-item__price">$5.50</span>
+              </div>
+              <p class="menu-item__desc">Slow-cooked pork, salsa verde, pickled red onion.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Pollo Asado</h3>
+                <span class="menu-item__price">$5.00</span>
+              </div>
+              <p class="menu-item__desc">Citrus-marinated chicken, avocado crema, pico de gallo.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Baja Fish</h3>
+                <span class="menu-item__price">$6.00</span>
+              </div>
+              <p class="menu-item__desc">Crispy battered fish, cabbage slaw, chipotle mayo.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Hongos <span class="tag">V</span></h3>
+                <span class="menu-item__price">$5.00</span>
+              </div>
+              <p class="menu-item__desc">Roasted mushrooms, poblano rajas, queso fresco.</p>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Bowls & Burritos -->
+        <section class="menu-category" id="bowls" aria-labelledby="bowls-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="bowls-title">Bowls &amp; Burritos</h2>
+            <p class="menu-category__note">Choice of any taco filling</p>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Burrito</h3>
+                <span class="menu-item__price">$14.00</span>
+              </div>
+              <p class="menu-item__desc">Flour tortilla, rice, beans, cheese, pico de gallo, crema.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Taco Bowl</h3>
+                <span class="menu-item__price">$15.00</span>
+              </div>
+              <p class="menu-item__desc">Rice, beans, greens, salsa and guacamole.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Quesadilla</h3>
+                <span class="menu-item__price">$12.00</span>
+              </div>
+              <p class="menu-item__desc">Flour tortilla, Oaxaca cheese, salsa roja on the side.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Quesabirria</h3>
+                <span class="menu-item__price">$16.00</span>
+              </div>
+              <p class="menu-item__desc">Three crispy cheese-and-birria tacos with consom&eacute;.</p>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Sides -->
+        <section class="menu-category" id="sides" aria-labelledby="sides-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="sides-title">Sides</h2>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Chips &amp; Guacamole <span class="tag">V</span></h3>
+                <span class="menu-item__price">$7.00</span>
+              </div>
+              <p class="menu-item__desc">House-fried tortilla chips, guacamole made to order.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Elote <span class="tag">V</span></h3>
+                <span class="menu-item__price">$6.00</span>
+              </div>
+              <p class="menu-item__desc">Grilled corn, chipotle mayo, cotija, lime.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Rice &amp; Beans</h3>
+                <span class="menu-item__price">$5.00</span>
+              </div>
+              <p class="menu-item__desc">Mexican red rice and frijoles.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Consom&eacute;</h3>
+                <span class="menu-item__price">$4.00</span>
+              </div>
+              <p class="menu-item__desc">Rich birria broth for dipping or sipping.</p>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Drinks -->
+        <section class="menu-category" id="drinks" aria-labelledby="drinks-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="drinks-title">Drinks</h2>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Horchata</h3>
+                <span class="menu-item__price">$4.50</span>
+              </div>
+              <p class="menu-item__desc">Sweet rice and cinnamon agua fresca.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Jamaica</h3>
+                <span class="menu-item__price">$4.50</span>
+              </div>
+              <p class="menu-item__desc">Hibiscus agua fresca.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Jarritos</h3>
+                <span class="menu-item__price">$3.50</span>
+              </div>
+              <p class="menu-item__desc">Assorted Mexican sodas.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Mexican Coke</h3>
+                <span class="menu-item__price">$4.00</span>
+              </div>
+              <p class="menu-item__desc">Made with cane sugar, in the glass bottle.</p>
+            </li>
+          </ul>
+        </section>
+
+      </div>
+    </section>
+
+    <!-- ===== ORDER ONLINE (target of every "Order Now" link) =========== -->
+    <section class="section section--dark" id="order" aria-labelledby="order-title">
+      <div class="container">
+        <div class="section-head section-head--center" data-reveal>
+          <p class="eyebrow">Order online</p>
+          <h2 id="order-title">Order Now</h2>
+          <p class="lead">Skip the line: order ahead for pickup at King St W, or get it delivered.</p>
+        </div>
+
+        <div class="grid grid--2 order-options" data-reveal>
+          <article class="info-card info-card--dark">
+            <h3 class="info-card__title">King St W</h3>
+            <p>150 King St W, Toronto, ON<br>In the PATH, near St. Andrew Station<br>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</p>
+            <!-- href is replaced by ORDER_URL in js/main.js once it's set -->
+            <a class="btn btn--primary" href="#order" data-order-link>Order pickup</a>
+          </article>
+
+          <article class="info-card info-card--dark">
+            <h3 class="info-card__title">One York <span class="tag">Opening soon</span></h3>
+            <p>One York Street, 2nd Floor, Toronto, ON<br>Online ordering opens here when we do.</p>
+            <!-- When this location opens, add an "Order pickup" button like the one above -->
+          </article>
+        </div>
+
+        <!-- TODO: link to the delivery app listing(s) -->
+        <p class="order-section__note">Prefer delivery? <a href="#order">Find us on your favourite delivery app</a>.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =====================================================================
+       SITE FOOTER (shared). Copy any change to all four pages.
+       TODO: add the social media URLs.
+       ===================================================================== -->
+  <footer class="site-footer">
+    <div class="container site-footer__grid">
+      <div class="site-footer__brand">
+        <a href="index.html">
+          <img class="site-footer__logo" src="images/logo-light.png" alt="Tacos De Princesa home" width="287" height="44" loading="lazy">
+        </a>
+        <p>Tacos, catering and good times in downtown Toronto.</p>
+        <ul class="social" aria-label="Social media">
+          <li>
+            <a href="#" aria-label="Instagram">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.tiktok.com/@tacosprincesa" aria-label="TikTok">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.facebook.com/share/1E2p2CBsy6/" aria-label="Facebook">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <h2 class="site-footer__title">Locations</h2>
+        <address>
+          <a href="https://www.google.com/maps/search/?api=1&amp;query=150+King+St+W+Toronto+ON" target="_blank" rel="noopener">
+            <span class="site-footer__place">King St W</span>
+            150 King St W, Toronto<br>
+            In the PATH, near St. Andrew Station
+          </a>
+        </address>
+        <address>
+          <a href="https://www.google.com/maps/search/?api=1&amp;query=1+York+St+Toronto+ON" target="_blank" rel="noopener">
+            <span class="site-footer__place">One York <span class="tag">Opening soon</span></span>
+            One York Street, 2nd Floor, Toronto
+          </a>
+        </address>
+      </div>
+
+      <div>
+        <h2 class="site-footer__title">Get in touch</h2>
+        <ul class="site-footer__list">
+          <li><a href="tel:+16472982267">647-298-2267</a></li>
+          <li><a href="mailto:tacosprincesa@gmail.com">tacosprincesa@gmail.com</a></li>
+        </ul>
+
+        <h2 class="site-footer__title site-footer__title--spaced">Hours</h2>
+        <p>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</p>
+      </div>
+
+      <nav aria-label="Footer">
+        <h2 class="site-footer__title">Explore</h2>
+        <ul class="site-footer__list">
+          <li><a href="menu.html">Menu</a></li>
+          <li><a href="menu.html#order" data-order-link>Order Now</a></li>
+          <li><a href="catering.html">Catering</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </nav>
+    </div>
+
+    <div class="site-footer__bottom">
+      <div class="container">
+        <p>&copy; <span data-year>2026</span> Tacos De Princesa. All rights reserved.</p>
+        <p>Made with love in Toronto</p>
+      </div>
+    </div>
+  </footer>
+  <!-- /SITE FOOTER -->
+</body>
+</html>

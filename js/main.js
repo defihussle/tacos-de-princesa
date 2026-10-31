@@ -1,0 +1,163 @@
+/* ==========================================================================
+   Tacos De Princesa — main.js
+   Small, dependency-free enhancements shared by every page.
+   JS hooks use data-* attributes; classes are left to styling.
+
+   0. Site config (online ordering URL)
+   1. Mobile navigation (slide-in panel)
+   2. Header background on scroll
+   3. Reveal-on-scroll for [data-reveal] elements
+   4. Footer year
+   5. Placeholder form handling (until a real form backend is connected)
+   6. Order links
+   ========================================================================== */
+
+(function () {
+  'use strict';
+
+  /* ---- 0. Site config ------------------------------------------------- */
+
+  // Paste the real online-ordering URL here when it's ready. Every link marked
+  // [data-order-link] (nav pill, hero, CTA strip, footer, menu page) will use it.
+  // While empty, those links go to the Order section on the menu page.
+  const ORDER_URL = '';
+
+  const header = document.querySelector('[data-header]');
+  const toggle = document.querySelector('[data-nav-toggle]');
+  const nav = document.querySelector('[data-nav]');
+  const backdrop = document.querySelector('[data-nav-backdrop]');
+
+  // Must match the desktop-nav breakpoint in styles.css (section 6).
+  const desktop = window.matchMedia('(min-width: 900px)');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+
+  /* ---- 1. Mobile navigation ------------------------------------------- */
+
+  function isMenuOpen() {
+    return nav.classList.contains('is-open');
+  }
+
+  function setMenu(open) {
+    nav.classList.toggle('is-open', open);
+    backdrop.classList.toggle('is-visible', open);
+    document.body.classList.toggle('nav-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  }
+
+  if (header && toggle && nav && backdrop) {
+    toggle.addEventListener('click', function () {
+      const open = !isMenuOpen();
+      setMenu(open);
+      if (open) nav.querySelector('a').focus();
+    });
+
+    // Tap outside the panel to close
+    backdrop.addEventListener('click', function () {
+      setMenu(false);
+    });
+
+    // Close after choosing a link (covers same-page anchors like #order)
+    nav.addEventListener('click', function (event) {
+      if (event.target.closest('a')) setMenu(false);
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && isMenuOpen()) {
+        setMenu(false);
+        toggle.focus();
+      }
+    });
+
+    // Close if keyboard focus tabs out of the header/menu
+    header.addEventListener('focusout', function (event) {
+      if (isMenuOpen() && event.relatedTarget && !header.contains(event.relatedTarget)) {
+        setMenu(false);
+      }
+    });
+
+    // Reset if the window is resized up to the desktop layout
+    desktop.addEventListener('change', function (event) {
+      if (event.matches) setMenu(false);
+    });
+  }
+
+
+  /* ---- 2. Header background on scroll --------------------------------- */
+
+  const SCROLL_OFFSET = 40; // px scrolled before the header gets its background
+  let ticking = false;
+
+  function updateHeader() {
+    header.classList.toggle('is-scrolled', window.scrollY > SCROLL_OFFSET);
+    ticking = false;
+  }
+
+  if (header) {
+    window.addEventListener('scroll', function () {
+      if (!ticking) {
+        window.requestAnimationFrame(updateHeader);
+        ticking = true;
+      }
+    }, { passive: true });
+
+    updateHeader(); // correct state if the page loads mid-scroll
+  }
+
+
+  /* ---- 3. Reveal on scroll -------------------------------------------- */
+
+  const revealEls = document.querySelectorAll('[data-reveal]');
+
+  if ('IntersectionObserver' in window && !reducedMotion.matches) {
+    const observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -10% 0px' });
+
+    revealEls.forEach(function (el) {
+      observer.observe(el);
+    });
+  } else {
+    revealEls.forEach(function (el) {
+      el.classList.add('is-visible');
+    });
+  }
+
+
+  /* ---- 4. Footer year ------------------------------------------------- */
+
+  document.querySelectorAll('[data-year]').forEach(function (el) {
+    el.textContent = new Date().getFullYear();
+  });
+
+
+  /* ---- 5. Placeholder forms ------------------------------------------- */
+  // Forms marked [data-demo-form] show a message instead of submitting.
+  // Once a form posts to a real endpoint, remove its data-demo-form attribute.
+
+  document.querySelectorAll('[data-demo-form]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      const status = form.querySelector('[data-form-status]');
+      if (status) {
+        status.textContent = 'Thanks! This form isn’t connected yet — please call or email us for now.';
+      }
+      form.reset();
+    });
+  });
+
+
+  /* ---- 6. Order links ------------------------------------------------- */
+
+  if (ORDER_URL) {
+    document.querySelectorAll('[data-order-link]').forEach(function (link) {
+      link.href = ORDER_URL;
+    });
+  }
+})();
