@@ -1391,25 +1391,32 @@ p:last-child {
   }
 }
 
-/* --- Order section (anchor target for every "Order Now" link) --- */
-.order-options {
-  max-width: 860px;
-  margin-inline: auto;
+/* --- Order section (anchor target for every "Order Now" link) ---
+   Ordering isn't live yet: a "Coming soon" tag and a disabled button. */
+.section--dark .tag {
+  background: rgba(255, 92, 147, 0.16);
+  color: var(--primary-light);
 }
 
-.order-section__note {
-  margin-top: 2.5rem;
+.tag--lg {
+  margin-bottom: 1rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.75rem;
+}
+
+.order-soon {
   text-align: center;
 }
 
-.order-section__note a {
-  color: var(--text);
-  border-bottom: 1px solid var(--primary-light);
-  transition: color var(--speed) var(--ease);
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
 }
 
-.order-section__note a:hover {
-  color: var(--primary-light);
+.btn--primary:disabled {
+  background: var(--primary);
 }
 
 

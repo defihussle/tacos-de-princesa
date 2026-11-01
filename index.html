@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tacos De Princesa | Taqueria in Downtown Toronto</title>
-  <meta name="description" content="Tacos De Princesa is a downtown Toronto taqueria in the PATH at 150 King St W, near St. Andrew Station, with One York Street opening soon. Our menu, online ordering, locations and contact details.">
+  <meta name="description" content="Tacos De Princesa is a downtown Toronto taqueria opening soon at 150 King St W in the PATH and at One York Street. Our menu, locations and catering.">
   <meta name="theme-color" content="#282936">
 
   <!-- Favicon -->
@@ -109,7 +109,7 @@
         <div class="section-head" data-reveal>
           <p class="eyebrow">Nuestro men&uacute;</p>
           <h2 id="menu-title">Menu</h2>
-          <p class="lead">Tacos, bowls, sides and aguas frescas, made fresh every day in the PATH at 150 King St W.</p>
+          <p class="lead">Tacos, bowls, sides and aguas frescas, made fresh every day, coming soon to 150 King St W and One York Street.</p>
         </div>
 
         <nav class="menu-nav" aria-label="Menu categories">
@@ -293,12 +293,12 @@
         <div class="section-head" data-reveal>
           <p class="eyebrow">Visit us</p>
           <h2 id="contact-section-title">Locations</h2>
-          <p class="lead">Find us in the PATH at 150 King St W, with a second spot at One York Street opening soon. Drop by, give us a call, or send us a note.</p>
+          <p class="lead">Two downtown spots, both opening soon: 150 King St W in the PATH and One York Street. Hours will be announced closer to opening.</p>
         </div>
 
         <div class="grid grid--2" data-reveal>
           <article class="info-card">
-            <h3 class="info-card__title">King St W</h3>
+            <h3 class="info-card__title">King St W <span class="tag">Opening soon</span></h3>
             <dl class="info-list">
               <div>
                 <dt>Address</dt>
@@ -306,7 +306,8 @@
               </div>
               <div>
                 <dt>Hours</dt>
-                <dd>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</dd>
+                <!-- TODO: add hours once this location opens -->
+                <dd>To be announced</dd>
               </div>
               <div>
                 <dt>Phone</dt>
@@ -338,91 +339,22 @@
       </div>
     </section>
 
-    <!-- ===== CONTACT FORM ============================================== -->
-    <section class="section section--warm" aria-labelledby="contact-title">
-      <div class="container split split--start">
-        <div data-reveal>
-          <p class="eyebrow">Say hola</p>
-          <h2 id="contact-title">Get in touch</h2>
-          <p class="lead">Questions, feedback, or planning something big? We&rsquo;d love to hear from you.</p>
-          <dl class="info-list contact-details">
-            <div>
-              <dt>Phone</dt>
-              <dd><a href="tel:+16472982267">647-298-2267</a></dd>
-            </div>
-            <div>
-              <dt>Email</dt>
-              <dd><a href="mailto:tacosprincesa@gmail.com">tacosprincesa@gmail.com</a></dd>
-            </div>
-            <div>
-              <dt>Catering</dt>
-              <dd><a href="catering.html#inquiry">Request a catering quote</a></dd>
-            </div>
-          </dl>
-        </div>
-
-        <div class="form-panel" data-reveal>
-          <!-- TODO: point action at a form service, then remove data-demo-form -->
-          <form class="form" action="#" method="post" data-demo-form>
-            <div class="form__row">
-              <div class="field">
-                <label for="contact-name">Name</label>
-                <input id="contact-name" name="name" type="text" autocomplete="name" required>
-              </div>
-              <div class="field">
-                <label for="contact-email">Email</label>
-                <input id="contact-email" name="email" type="email" autocomplete="email" required>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="contact-topic">Topic</label>
-              <select id="contact-topic" name="topic">
-                <option value="general">General question</option>
-                <option value="feedback">Feedback</option>
-                <option value="catering">Catering</option>
-                <option value="careers">Careers</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="contact-message">Message</label>
-              <textarea id="contact-message" name="message" required></textarea>
-            </div>
-
-            <button class="btn btn--primary btn--block" type="submit">Send message</button>
-            <p class="form-status" role="status" data-form-status></p>
-          </form>
-        </div>
-      </div>
-    </section>
-
     <!-- ===== ORDER ONLINE (target of every "Order Now" link) =========== -->
     <section class="section section--dark" id="order" aria-labelledby="order-title">
       <div class="container">
         <div class="section-head section-head--center" data-reveal>
           <p class="eyebrow">Order online</p>
           <h2 id="order-title">Order Now</h2>
-          <p class="lead">Skip the line: order ahead for pickup at King St W, or get it delivered.</p>
+          <span class="tag tag--lg">Coming soon</span>
+          <p class="lead">Online ordering and pickup open when our King St W and One York locations do. Check back soon.</p>
         </div>
 
-        <div class="grid grid--2 order-options" data-reveal>
-          <article class="info-card info-card--dark">
-            <h3 class="info-card__title">King St W</h3>
-            <p>150 King St W, Toronto, ON<br>In the PATH, near St. Andrew Station<br>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</p>
-            <!-- href is replaced by ORDER_URL in js/main.js once it's set -->
-            <a class="btn btn--primary" href="#order" data-order-link>Order pickup</a>
-          </article>
-
-          <article class="info-card info-card--dark">
-            <h3 class="info-card__title">One York <span class="tag">Opening soon</span></h3>
-            <p>One York Street, 2nd Floor, Toronto, ON<br>Online ordering opens here when we do.</p>
-            <!-- When this location opens, add an "Order pickup" button like the one above -->
-          </article>
+        <!-- Ordering isn't live yet, so this is a disabled button, not a link.
+             When it is, swap it for <a class="btn btn--primary" data-order-link>
+             and set ORDER_URL in js/main.js. -->
+        <div class="order-soon" data-reveal>
+          <button class="btn btn--primary" type="button" disabled>Ordering coming soon</button>
         </div>
-
-        <!-- TODO: link to the delivery app listing(s) -->
-        <p class="order-section__note">Prefer delivery? <a href="#order">Find us on your favourite delivery app</a>.</p>
       </div>
     </section>
 
@@ -488,11 +420,11 @@
     <section class="cta-strip" aria-labelledby="cta-title">
       <div class="container cta-strip__inner">
         <div>
-          <h2 id="cta-title">Hungry? Order Now.</h2>
-          <p>Order ahead for pickup at King St W, or have it delivered to the office.</p>
+          <h2 id="cta-title">Online ordering coming soon.</h2>
+          <p>Both locations open soon. In the meantime, see the menu or plan your next event with us.</p>
         </div>
         <div class="btn-group">
-          <a class="btn btn--light" href="#order" data-order-link>Order Now</a>
+          <a class="btn btn--light" href="#menu">See the menu</a>
           <a class="btn btn--outline" href="catering.html">Book Catering</a>
         </div>
       </div>
@@ -534,7 +466,7 @@
         <h2 class="site-footer__title">Locations</h2>
         <address>
           <a href="https://www.google.com/maps/search/?api=1&amp;query=150+King+St+W+Toronto+ON" target="_blank" rel="noopener">
-            <span class="site-footer__place">King St W</span>
+            <span class="site-footer__place">King St W <span class="tag">Opening soon</span></span>
             150 King St W, Toronto<br>
             In the PATH, near St. Andrew Station
           </a>
@@ -548,14 +480,8 @@
       </div>
 
       <div>
-        <h2 class="site-footer__title">Get in touch</h2>
-        <ul class="site-footer__list">
-          <li><a href="tel:+16472982267">647-298-2267</a></li>
-          <li><a href="mailto:tacosprincesa@gmail.com">tacosprincesa@gmail.com</a></li>
-        </ul>
-
-        <h2 class="site-footer__title site-footer__title--spaced">Hours</h2>
-        <p>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</p>
+        <h2 class="site-footer__title">Hours</h2>
+        <p>Both locations opening soon. Hours to be announced.</p>
       </div>
 
       <nav aria-label="Footer">
