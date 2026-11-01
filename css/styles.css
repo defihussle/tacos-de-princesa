@@ -247,6 +247,21 @@ p:last-child {
 }
 
 .section--white { background: var(--white); }
+
+/* Whole page on the hero's white wall texture (catering page). The first
+   section clears the taller light header. */
+.page-wall {
+  background: #ececec url("../images/hero/hero-wall.jpg") center top / cover;
+}
+
+.page-wall > .section:first-child {
+  padding-top: calc(var(--header-h-home) + 1.5rem);
+}
+
+/* Its page heading keeps the section-heading (h2) size */
+.page-wall h1 {
+  font-size: clamp(2.5rem, 7vw, 4rem);
+}
 .section--warm  { background: var(--bg-warm); }
 
 .section--dark {
@@ -653,6 +668,7 @@ p:last-child {
 .site-nav.is-open .site-nav__list li:nth-child(2) { transition-delay: 0.18s; }
 .site-nav.is-open .site-nav__list li:nth-child(3) { transition-delay: 0.24s; }
 .site-nav.is-open .site-nav__list li:nth-child(4) { transition-delay: 0.30s; }
+.site-nav.is-open .site-nav__list li:nth-child(5) { transition-delay: 0.36s; }
 
 @media (prefers-reduced-motion: reduce) {
   .site-nav__list li {

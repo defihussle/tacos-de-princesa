@@ -31,14 +31,16 @@
 
   <!-- =====================================================================
        SITE HEADER (shared with index.html). Everything but Catering lives
-       on index.html, so the other links point to its sections.
+       on index.html, so the other links point to its sections. Like the
+       home page, it uses site-header--light with the dark logo (logo.png),
+       because it sits on the light wall texture.
        "Order Now" links carry data-order-link: set the real ordering URL
        once in js/main.js (ORDER_URL) and they all update.
        ===================================================================== -->
-  <header class="site-header" data-header>
+  <header class="site-header site-header--light" data-header>
     <div class="container site-header__inner">
       <a class="brand" href="index.html">
-        <img src="images/logo-light.png" alt="Tacos De Princesa home" width="287" height="44">
+        <img src="images/logo.png" alt="Tacos De Princesa home" width="287" height="44">
       </a>
 
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu" data-nav-toggle>
@@ -53,6 +55,7 @@
           <li><a class="site-nav__link" href="index.html#menu">Menu</a></li>
           <li><a class="site-nav__link" href="index.html#order" data-order-link>Order Now</a></li>
           <li><a class="site-nav__link" href="catering.html" aria-current="page">Catering</a></li>
+          <li><a class="site-nav__link" href="index.html#contact">Locations</a></li>
         </ul>
       </nav>
 
@@ -61,130 +64,13 @@
   </header>
   <!-- /SITE HEADER -->
 
-  <main id="main">
-
-    <!-- ===== PAGE HERO ================================================ -->
-    <section class="page-hero scallop">
-      <div class="container">
-        <p class="eyebrow">Para tu evento</p>
-        <h1 class="page-hero__title">Catering</h1>
-        <p class="page-hero__lead">Office lunches, birthdays and celebrations of every size. We bring the taco bar to you.</p>
-      </div>
-    </section>
-
-    <!-- ===== INTRO ===================================================== -->
-    <!-- Placeholder copy: confirm service area and dietary options. -->
-    <section class="section">
-      <div class="container split">
-        <div data-reveal>
-          <p class="eyebrow">Taco bars &amp; more</p>
-          <h2>Feed the whole crew</h2>
-          <p class="lead">From a team lunch for ten to a party for a few hundred, our catering brings the same fillings, salsas and tortillas we serve every day, ready to set out and enjoy.</p>
-          <ul class="check-list">
-            <li>Delivery across downtown Toronto</li>
-            <li>Vegetarian and gluten-free options</li>
-            <li>Setup, serving gear and clear labelling</li>
-          </ul>
-          <div class="btn-group btn-group--spaced">
-            <a class="btn btn--primary" href="#inquiry">Start an inquiry</a>
-            <a class="btn btn--outline-dark" href="#packages">View packages</a>
-          </div>
-        </div>
-
-        <div data-reveal>
-          <div class="media-placeholder media-placeholder--tall" aria-hidden="true">Photo</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== HOW IT WORKS ============================================== -->
-    <section class="section section--dark" aria-labelledby="how-title">
-      <div class="container">
-        <div class="section-head" data-reveal>
-          <p class="eyebrow">How it works</p>
-          <h2 id="how-title">Three steps to a taco party</h2>
-        </div>
-
-        <ol class="steps" data-reveal>
-          <li class="step">
-            <h3>Tell us about your event</h3>
-            <p>Share the date, headcount and location using the form below.</p>
-          </li>
-          <li class="step">
-            <h3>Pick your spread</h3>
-            <p>Choose a package and fillings. We&rsquo;ll help you get the quantities right.</p>
-          </li>
-          <li class="step">
-            <h3>We handle the rest</h3>
-            <p>We deliver and set up, and you enjoy a taco bar everyone will talk about.</p>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- ===== PACKAGES ================================================== -->
-    <!-- Placeholder packages: replace names, minimums and inclusions. -->
-    <section class="section section--warm" id="packages" aria-labelledby="packages-title">
-      <div class="container">
-        <div class="section-head section-head--center" data-reveal>
-          <p class="eyebrow">Packages</p>
-          <h2 id="packages-title">Choose your spread</h2>
-          <p class="lead">Every package can be tailored. Ask us about custom menus.</p>
-        </div>
-
-        <div class="grid grid--3" data-reveal>
-          <article class="card package">
-            <div class="card__body">
-              <p class="package__meta">Min. 10 guests</p>
-              <h3 class="card__title">Office Lunch</h3>
-              <p class="card__text">Individually packed taco meals, ideal for meetings and working lunches.</p>
-              <ul class="check-list">
-                <li>Three tacos per guest</li>
-                <li>Chips &amp; salsa</li>
-                <li>Labelled for dietary needs</li>
-              </ul>
-              <a class="btn btn--outline-dark" href="#inquiry">Request a quote</a>
-            </div>
-          </article>
-
-          <article class="card package package--featured">
-            <div class="card__body">
-              <p class="package__meta">Most popular &middot; Min. 20 guests</p>
-              <h3 class="card__title">Taco Bar</h3>
-              <p class="card__text">A build-your-own spread that turns lunch into an event.</p>
-              <ul class="check-list">
-                <li>Three fillings of your choice</li>
-                <li>Tortillas, toppings &amp; salsas</li>
-                <li>Chips &amp; guacamole</li>
-                <li>Serving gear included</li>
-              </ul>
-              <a class="btn btn--primary" href="#inquiry">Request a quote</a>
-            </div>
-          </article>
-
-          <article class="card package">
-            <div class="card__body">
-              <p class="package__meta">Min. 50 guests</p>
-              <h3 class="card__title">Fiesta</h3>
-              <p class="card__text">Full-service catering with on-site staff for parties and celebrations.</p>
-              <ul class="check-list">
-                <li>Everything in the Taco Bar</li>
-                <li>On-site serving staff</li>
-                <li>Aguas frescas</li>
-              </ul>
-              <a class="btn btn--outline-dark" href="#inquiry">Request a quote</a>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
+  <main id="main" class="page-wall">
 
     <!-- ===== INQUIRY FORM ============================================== -->
     <section class="section" id="inquiry" aria-labelledby="inquiry-title">
       <div class="container split split--start">
         <div data-reveal>
-          <p class="eyebrow">Get a quote</p>
-          <h2 id="inquiry-title">Tell us about your event</h2>
+          <h1 id="inquiry-title">Tell us about your event</h1>
           <p class="lead">Send a few details and our catering team will get back to you with a quote.</p>
           <dl class="info-list contact-details">
             <div>
