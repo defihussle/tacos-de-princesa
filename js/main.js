@@ -11,6 +11,7 @@
    5. Placeholder form handling (until a real form backend is connected)
    6. Order links
    7. Refresh starts at the top
+   8. Menu category tabs
    ========================================================================== */
 
 (function () {
@@ -173,5 +174,41 @@
     };
     toTop();
     window.addEventListener('load', toTop);
+  }
+
+
+  /* ---- 8. Menu category tabs ------------------------------------------ */
+  // The category chips ([data-menu-tab]) show one .menu-category at a time,
+  // starting with the first (Birria). Without JS every category shows.
+
+  const menuTabs = Array.prototype.slice.call(document.querySelectorAll('[data-menu-tab]'));
+
+  if (menuTabs.length) {
+    const panels = menuTabs.map(function (tab) {
+      return document.getElementById(tab.getAttribute('href').slice(1));
+    });
+
+    const showCategory = function (index) {
+      menuTabs.forEach(function (tab, i) {
+        const active = i === index;
+        if (active) tab.setAttribute('aria-current', 'true');
+        else tab.removeAttribute('aria-current');
+        if (panels[i]) {
+          panels[i].hidden = !active;
+          // Already on screen, so skip the fade-up reveal
+          if (active) panels[i].classList.add('is-visible');
+        }
+      });
+    };
+
+    panels[0].parentElement.classList.add('menu--tabs');
+    showCategory(0);
+
+    menuTabs.forEach(function (tab, i) {
+      tab.addEventListener('click', function (event) {
+        event.preventDefault();
+        showCategory(i);
+      });
+    });
   }
 })();

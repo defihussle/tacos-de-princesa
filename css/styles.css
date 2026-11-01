@@ -1325,6 +1325,7 @@ p:last-child {
   text-transform: uppercase;
   transition:
     border-color var(--speed) var(--ease),
+    background-color var(--speed) var(--ease),
     color var(--speed) var(--ease);
 }
 
@@ -1333,8 +1334,20 @@ p:last-child {
   color: var(--primary-dark);
 }
 
+/* Selected category (set by js/main.js) */
+.chip[aria-current="true"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--text);
+}
+
 .menu-category + .menu-category {
   margin-top: 4.5rem;
+}
+
+/* One category at a time: the shown one sits right under the chips */
+.menu--tabs .menu-category {
+  margin-top: 0;
 }
 
 .menu-category__head {
