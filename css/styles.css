@@ -1445,6 +1445,12 @@ p:last-child {
   }
 }
 
+/* --- House Favourites: two cards, kept to a comfortable width --- */
+.featured-grid {
+  max-width: 860px;
+  margin-inline: auto;
+}
+
 /* --- Order section (anchor target for every "Order Now" link) ---
    Ordering isn't live yet, so it shows a disabled button. */
 .order-cta {

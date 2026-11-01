@@ -10,6 +10,7 @@
    4. Footer year
    5. Placeholder form handling (until a real form backend is connected)
    6. Order links
+   7. Refresh starts at the top
    ========================================================================== */
 
 (function () {
@@ -153,5 +154,24 @@
     document.querySelectorAll('[data-order-link]').forEach(function (link) {
       link.href = ORDER_URL;
     });
+  }
+
+
+  /* ---- 7. Refresh starts at the top ----------------------------------- */
+  // A reload would otherwise reopen at the last scroll position, or at the
+  // #section left in the URL by an in-page link. Arriving from another page
+  // (e.g. catering.html -> index.html#menu) still goes to that section.
+
+  const navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+
+  if (navEntry && navEntry.type === 'reload') {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+
+    const toTop = function () {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    };
+    toTop();
+    window.addEventListener('load', toTop);
   }
 })();
