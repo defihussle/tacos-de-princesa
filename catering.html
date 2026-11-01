@@ -21,6 +21,10 @@
 
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/main.js" defer></script>
+
+  <!-- Catering form: EmailJS emails each inquiry; setup in js/catering.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js" defer></script>
+  <script src="js/catering.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -195,8 +199,9 @@
         </div>
 
         <div class="form-panel" data-reveal>
-          <!-- TODO: point action at a form service, then remove data-demo-form -->
-          <form class="form" action="#" method="post" data-demo-form>
+          <!-- Sent by EmailJS (js/catering.js). The name attributes are the
+               template variables, so keep them in sync with the template. -->
+          <form class="form" id="catering-form" action="#" method="post">
             <div class="form__row">
               <div class="field">
                 <label for="cat-name">Name</label>
@@ -215,7 +220,7 @@
               </div>
               <div class="field">
                 <label for="cat-date">Event date</label>
-                <input id="cat-date" name="date" type="date">
+                <input id="cat-date" name="event_date" type="date">
               </div>
             </div>
 
@@ -226,17 +231,17 @@
               </div>
               <div class="field">
                 <label for="cat-service">Pickup or delivery</label>
-                <select id="cat-service" name="service">
-                  <option value="delivery">Delivery to my venue</option>
-                  <option value="pickup-king">Pickup: King St W</option>
-                  <option value="pickup-york">Pickup: One York</option>
+                <select id="cat-service" name="pickup_delivery">
+                  <option>Delivery to my venue</option>
+                  <option>Pickup: King St W</option>
+                  <option>Pickup: One York</option>
                 </select>
               </div>
             </div>
 
             <div class="field">
               <label for="cat-details">Event details</label>
-              <textarea id="cat-details" name="details" placeholder="Type of event, package you're interested in, dietary needs..."></textarea>
+              <textarea id="cat-details" name="message" placeholder="Type of event, package you're interested in, dietary needs..."></textarea>
             </div>
 
             <button class="btn btn--primary btn--block" type="submit">Send inquiry</button>
