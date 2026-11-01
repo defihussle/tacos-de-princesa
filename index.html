@@ -287,35 +287,6 @@
       </div>
     </section>
 
-    <!-- ===== ORDER ONLINE (target of every "Order Now" link) =========== -->
-    <section class="section section--dark" id="order" aria-labelledby="order-title">
-      <div class="container">
-        <div class="section-head section-head--center" data-reveal>
-          <p class="eyebrow">Order online</p>
-          <h2 id="order-title">Order Now</h2>
-          <p class="lead">Skip the line: order ahead for pickup at King St W, or get it delivered.</p>
-        </div>
-
-        <div class="grid grid--2 order-options" data-reveal>
-          <article class="info-card info-card--dark">
-            <h3 class="info-card__title">King St W</h3>
-            <p>150 King St W, Toronto, ON<br>In the PATH, near St. Andrew Station<br>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</p>
-            <!-- href is replaced by ORDER_URL in js/main.js once it's set -->
-            <a class="btn btn--primary" href="#order" data-order-link>Order pickup</a>
-          </article>
-
-          <article class="info-card info-card--dark">
-            <h3 class="info-card__title">One York <span class="tag">Opening soon</span></h3>
-            <p>One York Street, 2nd Floor, Toronto, ON<br>Online ordering opens here when we do.</p>
-            <!-- When this location opens, add an "Order pickup" button like the one above -->
-          </article>
-        </div>
-
-        <!-- TODO: link to the delivery app listing(s) -->
-        <p class="order-section__note">Prefer delivery? <a href="#order">Find us on your favourite delivery app</a>.</p>
-      </div>
-    </section>
-
     <!-- ===== LOCATIONS (target of the nav "Contact" link, #contact) ==== -->
     <section class="section" id="contact" aria-labelledby="contact-section-title">
       <div class="container">
@@ -420,6 +391,35 @@
             <p class="form-status" role="status" data-form-status></p>
           </form>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== ORDER ONLINE (target of every "Order Now" link) =========== -->
+    <section class="section section--dark" id="order" aria-labelledby="order-title">
+      <div class="container">
+        <div class="section-head section-head--center" data-reveal>
+          <p class="eyebrow">Order online</p>
+          <h2 id="order-title">Order Now</h2>
+          <p class="lead">Skip the line: order ahead for pickup at King St W, or get it delivered.</p>
+        </div>
+
+        <div class="grid grid--2 order-options" data-reveal>
+          <article class="info-card info-card--dark">
+            <h3 class="info-card__title">King St W</h3>
+            <p>150 King St W, Toronto, ON<br>In the PATH, near St. Andrew Station<br>Mon&ndash;Fri: 10:30 AM &ndash; 6:00 PM</p>
+            <!-- href is replaced by ORDER_URL in js/main.js once it's set -->
+            <a class="btn btn--primary" href="#order" data-order-link>Order pickup</a>
+          </article>
+
+          <article class="info-card info-card--dark">
+            <h3 class="info-card__title">One York <span class="tag">Opening soon</span></h3>
+            <p>One York Street, 2nd Floor, Toronto, ON<br>Online ordering opens here when we do.</p>
+            <!-- When this location opens, add an "Order pickup" button like the one above -->
+          </article>
+        </div>
+
+        <!-- TODO: link to the delivery app listing(s) -->
+        <p class="order-section__note">Prefer delivery? <a href="#order">Find us on your favourite delivery app</a>.</p>
       </div>
     </section>
 
