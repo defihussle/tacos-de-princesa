@@ -727,8 +727,8 @@ p:last-child {
 /* ==========================================================================
    7. Home hero
    Full-viewport stage for the layered Princesa art (images/hero/). No copy:
-   the illustration is the whole hero, centred under the nav. Static: no
-   scroll or idle animation.
+   the illustration is the whole hero, centred under the nav. Static apart
+   from a slow breeze in the lower curls (see .hero__layer--hair-flow).
    ========================================================================== */
 .hero {
   --hero-wall: #ececec; /* average colour of the wall texture in the art */
@@ -901,7 +901,36 @@ p:last-child {
 .hero__layer--hair {
   z-index: 2;
   transform: var(--hair-move);
-  transform-origin: 50% 85%; /* sways from near the bottom centre */
+  transform-origin: 50% 85%;
+  /* Ends at 70% of the frame (the shoulders); below that the flowing copy
+     takes over, so the moving curls never show a static double */
+  -webkit-mask-image: linear-gradient(#000 70%, transparent 70%);
+  mask-image: linear-gradient(#000 70%, transparent 70%);
+}
+
+/* --- Breeze in the lower hair ---------------------------------------------
+   A copy of the hair, faded in from 60% to 70% of the frame (just below the
+   chin), sways with a tiny skew pivoting at 62%: no movement at the chin
+   line, growing to ~2-3px at the curl tips. Across the fade the static hair
+   is still fully drawn underneath and the copy has barely moved, so there is
+   no seam; the face, scalp, upper hair and roses never move. */
+.hero__layer--hair-flow {
+  z-index: 3;
+  -webkit-mask-image: linear-gradient(transparent 60%, #000 70%);
+  mask-image: linear-gradient(transparent 60%, #000 70%);
+  transform-origin: 50% 62%;
+  animation: hair-breeze 7s ease-in-out infinite alternate;
+}
+
+@keyframes hair-breeze {
+  from { transform: skewX(-0.6deg); }
+  to   { transform: skewX(0.6deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__layer--hair-flow {
+    animation: none;
+  }
 }
 
 /* "Scroll" cue under the art */

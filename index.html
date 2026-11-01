@@ -98,13 +98,15 @@
 
       <!-- Layered character art. Both layers share one 923x900 frame
            (.hero__stage) so they stay aligned at any size: base (face),
-           then hair (a cut-out) on top. The hero is static;
+           then hair (a cut-out) on top. Only the lower curls move (a slow sway);
            see styles.css §7. -->
       <div class="hero__layers" aria-hidden="true">
         <div class="hero__stage">
           <div class="hero__character">
             <img class="hero__layer hero__layer--base" src="images/hero/pricessa-base.png" alt="" width="923" height="900" fetchpriority="high">
             <img class="hero__layer hero__layer--hair" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900" fetchpriority="high">
+            <!-- Same hair image, showing only the lower curls, which sway gently -->
+            <img class="hero__layer hero__layer--hair-flow" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900">
           </div>
         </div>
       </div>
