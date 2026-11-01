@@ -750,7 +750,8 @@ p:last-child {
                      the empty wall margins may run off-screen.
    .hero__character  Groups base + hair and holds the seam backing. The face
                      and the hair's face-hole are cut to fit each other, so
-                     they move together; the hair only adds a small sway.
+                     they move together; the hair adds its own sway, and the
+                     backing moves with the hair.
    .hero__layer      One PNG filling the frame. Stack: bg < base < hair.
                      The hair is a cut-out (wall removed), so it can move
                      freely over the bg.
@@ -765,9 +766,9 @@ p:last-child {
 
 .hero__stage {
   /* Character height: most of the height, or on phones as wide as it can
-     be while the scroll sway (up to ~3.5% of its width to the right, ~0.6%
-     to the left) still never crops the hair. Character is 662x697 in the
-     frame, so this is ~96% of the width at rest. */
+     be while the scroll sway (js/hero.js) stays on screen; at its strongest
+     the paint splatter on the left just reaches the edge. Character is
+     662x697 in the frame, so this is ~96% of the width at rest. */
   --char-h: min(88cqh, 102cqw - 0.5rem);
   --stage-h: calc(var(--char-h) * 900 / 697);
   --stage-w: calc(var(--stage-h) * 923 / 900);
@@ -806,7 +807,24 @@ p:last-child {
   mask-composite: intersect;
 }
 
+/* Hair motion, set by js/hero.js: --hair-x/-y in % of the frame, --hair-rot
+   and --hair-skew in degrees (scroll), plus the idle wind (--wind-x/-rot,
+   scaled by --wind, 0-1). The hair and the seam backing both use
+   --hair-move, so the backing stays lined up with the face-hole however far
+   the hair moves. At rest every value is 0 and nothing moves. */
 .hero__character {
+  --hair-x: 0;
+  --hair-y: 0;
+  --hair-rot: 0;
+  --hair-skew: 0;
+  --wind-x: 0;
+  --wind-rot: 0;
+  --wind: 0;
+  --hair-move:
+    translate(calc(var(--stage-w) * (var(--hair-x) + var(--wind-x) * var(--wind)) / 100),
+              calc(var(--stage-h) * var(--hair-y) / 100))
+    rotate(calc((var(--hair-rot) + var(--wind-rot) * var(--wind)) * 1deg))
+    skewX(calc(var(--hair-skew) * 1deg));
   z-index: 1;
 }
 
@@ -814,16 +832,18 @@ p:last-child {
    show through. This dark backing sits under the face, sized to the hair's
    face-hole, so at rest it only shows in those gaps, in the hair colour
    from the original artwork. It reaches past the face-hole on the top and
-   left (still hidden under the hair) so the gaps stay dark while the hair
-   sways on scroll; the hair is too thin on the right to go further there.
-   It stops just above the chest, where the gaps are skin-toned in the
-   original. */
+   left (still hidden under the hair) and stops just above the chest, where
+   the gaps are skin-toned in the original. It moves with the hair (same
+   transform and pivot), so it never slides out from under it. */
 .hero__character::before {
   content: "";
   position: absolute;
   inset: 23% 23.5% 25.6% 28%;
   background: #2f1e20;
   clip-path: polygon(0 0, 80% 0, 100% 15%, 100% 100%, 0 100%); /* clear of the big rose's edge */
+  transform: var(--hair-move);
+  /* The hair's pivot (50% 85% of the frame) measured from this box */
+  transform-origin: calc(var(--stage-w) * 0.22) calc(var(--stage-h) * 0.62);
 }
 
 .hero__layer--base {
@@ -832,6 +852,7 @@ p:last-child {
 
 .hero__layer--hair {
   z-index: 2;
+  transform: var(--hair-move);
   transform-origin: 50% 85%; /* sways from near the bottom centre */
 }
 
