@@ -1089,6 +1089,11 @@ p:last-child {
   color: var(--muted);
 }
 
+/* Price at the foot of the card, so it lines up across a row */
+.card__body .menu-item__price {
+  margin-top: auto;
+}
+
 /* --- Small pill label --- */
 .tag {
   display: inline-block;
@@ -1427,12 +1432,6 @@ p:last-child {
   .menu-list {
     grid-template-columns: 1fr 1fr;
   }
-}
-
-/* --- House Favourites: two cards, kept to a comfortable width --- */
-.featured-grid {
-  max-width: 860px;
-  margin-inline: auto;
 }
 
 /* --- Order section (anchor target for every "Order Now" link) ---
