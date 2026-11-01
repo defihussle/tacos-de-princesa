@@ -1092,7 +1092,7 @@ p:last-child {
   font-size: 2.25rem;
 }
 
-/* Status tag beside a card title, e.g. "Opening soon" */
+/* Status tag beside a card title, e.g. "Now open" */
 .info-card__title .tag {
   margin-left: 0.5rem;
   vertical-align: middle;
@@ -1392,19 +1392,8 @@ p:last-child {
 }
 
 /* --- Order section (anchor target for every "Order Now" link) ---
-   Ordering isn't live yet: a "Coming soon" tag and a disabled button. */
-.section--dark .tag {
-  background: rgba(255, 92, 147, 0.16);
-  color: var(--primary-light);
-}
-
-.tag--lg {
-  margin-bottom: 1rem;
-  padding: 0.4rem 1rem;
-  font-size: 0.75rem;
-}
-
-.order-soon {
+   Ordering isn't live yet, so it shows a disabled button. */
+.order-cta {
   text-align: center;
 }
 
