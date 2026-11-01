@@ -1413,6 +1413,38 @@ p:last-child {
   }
 }
 
+/* --- Tagline under the hero: lettering image, spaced caps line, buttons --- */
+.tagline {
+  text-align: center;
+}
+
+.tagline__title {
+  margin: 0 auto 2.5rem;
+  max-width: 720px;
+}
+
+/* White in the artwork drops out against the page background */
+.tagline__title img {
+  width: 100%;
+  height: auto;
+  mix-blend-mode: multiply;
+}
+
+.tagline__lead {
+  max-width: 34em;
+  margin: 0 auto 2.5rem;
+  font-size: clamp(0.85rem, 2.2vw, 1.1rem);
+  font-weight: 700;
+  line-height: 1.8;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--text-dark);
+}
+
+.tagline__actions {
+  justify-content: center;
+}
+
 /* --- Order section (anchor target for every "Order Now" link) ---
    Ordering isn't live yet, so it shows a disabled button. */
 .order-cta {
