@@ -1147,6 +1147,22 @@ p:last-child {
   margin: 0.1rem 0 0;
 }
 
+/* Day-by-day opening hours inside an .info-list */
+.hours-list {
+  display: grid;
+  gap: 0.2rem;
+  max-width: 19rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hours-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .info-list a {
   transition: color var(--speed) var(--ease);
 }
