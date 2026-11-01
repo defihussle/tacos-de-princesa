@@ -46,8 +46,12 @@
   --border-dark: rgba(255, 255, 255, 0.12);
 
   /* Typography */
-  --font-display: "Bebas Neue", Impact, "Arial Narrow", sans-serif;
-  --font-body: "Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Brandon Grotesque is a paid font (HVD Fonts; also in Adobe Fonts), so
+     Josefin Sans, the closest free match, loads from Google Fonts. Brandon
+     is used wherever it's available: add its @font-face (or Adobe Fonts kit)
+     and it takes over without other changes. */
+  --font-display: "Brandon Grotesque", "Josefin Sans", system-ui, sans-serif;
+  --font-body: "Brandon Grotesque", "Josefin Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   /* Layout */
   --container: 1200px;
@@ -188,14 +192,15 @@ h3,
 h4 {
   margin: 0 0 0.5em;
   font-family: var(--font-display);
-  font-weight: 400; /* Bebas Neue ships a single weight */
-  line-height: 0.95;
+  font-weight: 700;
+  line-height: 1.05;
   letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
-h1 { font-size: clamp(3.25rem, 11vw, 7rem); }
-h2 { font-size: clamp(2.5rem, 7vw, 4rem); }
-h3 { font-size: clamp(1.6rem, 4vw, 2rem); }
+h1 { font-size: clamp(2.5rem, 8vw, 5rem); }
+h2 { font-size: clamp(2rem, 5.5vw, 3.25rem); }
+h3 { font-size: clamp(1.3rem, 3vw, 1.6rem); }
 
 p {
   margin: 0 0 1.1em;
@@ -446,7 +451,7 @@ p:last-child {
    Logo centred, hamburger on the right at every width; the links live in
    the slide-in panel. Transparent by default so it overlays the hero.
    main.js adds .is-scrolled after a short scroll, which fades in a dark
-   translucent background (a light one with .site-header--light).
+   translucent background (the brand pink with .site-header--light).
    The background lives on ::before (not the header itself) because
    backdrop-filter on the header would trap the fixed slide-in panel inside it.
    ========================================================================== */
@@ -483,11 +488,19 @@ p:last-child {
   opacity: 1;
 }
 
-/* Home page: the header sits on the light hero wall, so it stays clear with
-   dark ink, and the scrolled background is a frosted bar in the wall tone
-   (--hero-wall, #ececec) instead of the dark one. */
+/* Home and catering: the header sits on the light wall, so it stays clear
+   with dark ink; once scrolled it becomes a pink bar with a white logo and
+   hamburger. */
 .site-header--light {
   color: var(--darker);
+}
+
+.site-header--light.is-scrolled {
+  color: var(--text);
+}
+
+.site-header--light.is-scrolled .brand img {
+  filter: brightness(0) invert(1); /* dark logo.png drawn in white */
 }
 
 /* Taller at the top so the logo sits lower; shrinks as usual on scroll.
@@ -498,8 +511,8 @@ p:last-child {
 }
 
 .site-header--light::before {
-  background: rgba(236, 236, 236, 0.88);
-  box-shadow: 0 6px 24px rgba(28, 29, 39, 0.08);
+  background: var(--primary);
+  box-shadow: 0 6px 24px rgba(28, 29, 39, 0.12);
 }
 
 /* Equal side columns keep the logo dead-centre whatever the toggle does.
@@ -555,9 +568,9 @@ p:last-child {
   transition: color var(--speed) var(--ease);
 }
 
-/* The open panel is dark, so on the light header the close (X) turns white */
-.site-header--light .nav-toggle[aria-expanded="true"] {
-  color: var(--text);
+/* The open panel is white, so the close (X) is dark, even on the pink bar */
+.site-header .nav-toggle[aria-expanded="true"] {
+  color: var(--darker);
 }
 
 .nav-toggle__bar {
@@ -596,8 +609,8 @@ p:last-child {
   width: min(84vw, 360px);
   padding: calc(var(--header-h) + 1.5rem) 2.25rem 2.5rem;
   overflow-y: auto;
-  background: var(--dark);
-  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.35);
+  background: var(--white);
+  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.18);
   transform: translateX(100%);
   visibility: hidden; /* keeps hidden links out of the tab order */
   transition:
@@ -624,7 +637,7 @@ p:last-child {
 }
 
 .site-nav__list li + li {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(28, 29, 39, 0.08);
 }
 
 .site-nav__link {
@@ -632,10 +645,12 @@ p:last-child {
   display: block;
   padding: 0.85rem 0;
   font-family: var(--font-display);
-  font-size: clamp(2.75rem, 12vw, 3.25rem);
-  line-height: 1;
-  letter-spacing: 0.05em;
-  color: var(--text);
+  font-size: clamp(1.9rem, 8vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--darker);
   transition:
     color var(--speed) var(--ease),
     transform var(--speed) var(--ease);
@@ -712,10 +727,8 @@ p:last-child {
 /* ==========================================================================
    7. Home hero
    Full-viewport stage for the layered Princesa art (images/hero/). No copy:
-   the illustration is the whole hero, centred under the nav. As the hero
-   scrolls away (no pin), js/hero.js moves the layers apart for a 2.5D
-   parallax (GSAP ScrollTrigger). Without JS, or with reduced motion,
-   the art simply stays still.
+   the illustration is the whole hero, centred under the nav. Static: no
+   scroll or idle animation.
    ========================================================================== */
 .hero {
   --hero-wall: #ececec; /* average colour of the wall texture in the art */
@@ -724,14 +737,14 @@ p:last-child {
   height: 100vh;
   height: 100svh; /* avoids mobile browser-chrome jump where supported */
   min-height: 30rem;
-  overflow: hidden; /* parallax moves stay inside the hero */
+  overflow: hidden;
   background: var(--hero-wall);
 }
 
 /* --- Wall and roses ---------------------------------------------------------
-   .hero__wall  The textured wall, full width at every size. It is the bg
-                layer js/hero.js drifts down and scales on scroll, so it
-                starts --wall-bleed above the hero to keep the top covered.
+   .hero__wall  The textured wall, full width at every size. It starts
+                --wall-bleed above the hero (sizing for the roses is based
+                on this box, so it stays as it was when it moved).
    .hero__rose  Rose cut-outs on the wall, behind the character, so they
                 never cover her. Phones: red top-left, grey bottom-right
                 (pink hidden). Desktop: grey to her left, red and pink to her
@@ -822,8 +835,7 @@ p:last-child {
 
 .hero__stage {
   /* Character height: most of the height, or on phones as wide as it can
-     be while the scroll sway (js/hero.js) stays on screen; at its strongest
-     the paint splatter on the left just reaches the edge. Character is
+     be with room for the paint splatter on the left. Character is
      662x697 in the frame, so this is ~96% of the width at rest. */
   --char-h: min(88cqh, 102cqw - 0.5rem);
   --stage-h: calc(var(--char-h) * 900 / 697);
@@ -835,7 +847,6 @@ p:last-child {
   top: calc(50% - var(--stage-h) * 0.527);
   width: var(--stage-w);
   height: var(--stage-h);
-  animation: hero-intro 2.2s cubic-bezier(0.25, 1, 0.5, 1) both; /* easeOutQuart: long, soft landing */
 }
 
 .hero__character,
@@ -846,11 +857,9 @@ p:last-child {
   height: 100%;
 }
 
-/* Hair motion, set by js/hero.js: --hair-x/-y in % of the frame, --hair-rot
-   and --hair-skew in degrees (scroll), plus the idle wind (--wind-x/-rot,
-   scaled by --wind, 0-1). The hair and the seam backing both use
-   --hair-move, so the backing stays lined up with the face-hole however far
-   the hair moves. At rest every value is 0 and nothing moves. */
+/* The hero is static. These hair-offset variables are all 0 (no movement);
+   the hair and the seam backing both use --hair-move, so they stay lined up
+   if an offset is ever set. */
 .hero__character {
   --hair-x: 0;
   --hair-y: 0;
@@ -895,44 +904,7 @@ p:last-child {
   transform-origin: 50% 85%; /* sways from near the bottom centre */
 }
 
-/* --- Motion -----------------------------------------------------------------
-   On load: the stage fades and settles in (hero-intro), then the character
-   floats gently (.anim-float on .hero__character). The float animates the
-   `translate` property, which adds to the `transform` that js/hero.js sets
-   on scroll, so the two never fight. Keyframes end at rest, so the
-   reduced-motion rules in §16 leave the art still. */
-.anim-float {
-  animation: hero-float 7s ease-in-out 2.2s infinite; /* starts once hero-intro ends */
-}
-
-.anim-sway {
-  transform-origin: 50% 20%;
-  animation: hero-sway 9s ease-in-out infinite;
-}
-
-/* Fades in over the first half while it rises and settles over the whole */
-@keyframes hero-intro {
-  from {
-    opacity: 0;
-    transform: translateY(1.5%) scale(1.04);
-  }
-  55% {
-    opacity: 1;
-  }
-}
-
-@keyframes hero-float {
-  0%, 100% { translate: 0 0; }
-  50%      { translate: 0 -0.8%; }
-}
-
-@keyframes hero-sway {
-  0%, 100% { transform: none; }
-  25%      { transform: rotate(0.25deg); }
-  75%      { transform: rotate(-0.25deg); }
-}
-
-/* Animated "scroll" cue (hidden by js/hero.js once scrolling starts) */
+/* "Scroll" cue under the art */
 .hero__scroll {
   position: absolute;
   left: 50%;
@@ -948,13 +920,6 @@ p:last-child {
   color: var(--muted);
   transform: translateX(-50%);
   transition: color var(--speed) var(--ease);
-  /* Arrives once the art has mostly settled. `backwards` only holds it
-     hidden during the delay, so js/hero.js can still fade it out after. */
-  animation: hero-cue-in 0.8s ease 1.6s backwards;
-}
-
-@keyframes hero-cue-in {
-  from { opacity: 0; }
 }
 
 .hero__scroll:hover {
@@ -966,14 +931,6 @@ p:last-child {
   width: 1px;
   height: 32px;
   background: currentColor;
-  animation: scroll-cue 2.2s var(--ease) infinite;
-}
-
-@keyframes scroll-cue {
-  0%   { transform: scaleY(0); transform-origin: top; }
-  45%  { transform: scaleY(1); transform-origin: top; }
-  55%  { transform: scaleY(1); transform-origin: bottom; }
-  100% { transform: scaleY(0); transform-origin: bottom; }
 }
 
 /* Short screens: no room under the art */
@@ -1148,7 +1105,7 @@ p:last-child {
 
 .info-card__title {
   margin: 0;
-  font-size: 2.25rem;
+  font-size: 1.75rem;
 }
 
 /* Status tag beside a card title, e.g. "Now open" */
@@ -1275,6 +1232,11 @@ p:last-child {
 }
 
 /* Decorative circles */
+/* Pink buttons on the pink strip: a white ring keeps them visible */
+.cta-strip .btn--primary {
+  border-color: var(--white);
+}
+
 .cta-strip::before,
 .cta-strip::after {
   content: "";
@@ -1417,7 +1379,7 @@ p:last-child {
   align-items: baseline;
   gap: 0.6rem;
   margin: 0;
-  font-size: 1.65rem;
+  font-size: 1.3rem;
 }
 
 .menu-item__name::after {
@@ -1433,8 +1395,9 @@ p:last-child {
 
 .menu-item__price {
   font-family: var(--font-display);
-  font-size: 1.65rem;
-  line-height: 0.95;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.05;
   color: var(--primary);
 }
 

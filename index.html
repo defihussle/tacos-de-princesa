@@ -14,19 +14,14 @@
   <!-- Marks that JS is available (used by reveal-on-scroll styles). Keep it first. -->
   <script>document.documentElement.classList.add('js');</script>
 
-  <!-- Fonts: Bebas Neue (headings) + Montserrat (body) -->
+  <!-- Font: Josefin Sans, standing in for Brandon Grotesque (see --font-body in styles.css) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&display=swap">
 
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/main.js" defer></script>
 
-  <!-- Home hero scroll animation: GSAP + ScrollTrigger, then js/hero.js.
-       If the CDN is unreachable the hero just stays still. -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
-  <script src="js/hero.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -70,14 +65,13 @@
   <main id="main">
 
     <!-- ===== HERO ===================================================== -->
-    <section class="hero scallop" id="home" aria-labelledby="hero-title" data-hero>
+    <section class="hero scallop" id="home" aria-labelledby="hero-title">
       <!-- The page heading, for screen readers and search engines only:
            the illustration is the whole visible hero. -->
       <h1 class="visually-hidden" id="hero-title">Tacos De Princesa</h1>
 
-      <!-- Full-width textured wall with the roses on it. It is the "bg"
-           layer js/hero.js drifts on scroll, so the roses drift with it. -->
-      <div class="hero__wall" aria-hidden="true" data-hero-layer="bg">
+      <!-- Full-width textured wall with the roses on it. -->
+      <div class="hero__wall" aria-hidden="true">
         <img class="hero__rose hero__rose--grey" src="images/hero/rose-grey.png" alt="" width="331" height="308">
         <img class="hero__rose hero__rose--red" src="images/hero/rose-red.png" alt="" width="181" height="177">
         <img class="hero__rose hero__rose--pink" src="images/hero/rose-pink.png" alt="" width="180" height="183">
@@ -85,18 +79,18 @@
 
       <!-- Layered character art. Both layers share one 923x900 frame
            (.hero__stage) so they stay aligned at any size: base (face),
-           then hair (a cut-out) on top. js/hero.js moves them on scroll;
+           then hair (a cut-out) on top. The hero is static;
            see styles.css §7. -->
       <div class="hero__layers" aria-hidden="true">
         <div class="hero__stage">
-          <div class="hero__character anim-float" data-hero-character>
-            <img class="hero__layer hero__layer--base" src="images/hero/pricessa-base.png" alt="" width="923" height="900" fetchpriority="high" data-hero-layer="base">
-            <img class="hero__layer hero__layer--hair" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900" fetchpriority="high" data-hero-layer="hair">
+          <div class="hero__character">
+            <img class="hero__layer hero__layer--base" src="images/hero/pricessa-base.png" alt="" width="923" height="900" fetchpriority="high">
+            <img class="hero__layer hero__layer--hair" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900" fetchpriority="high">
           </div>
         </div>
       </div>
 
-      <a class="hero__scroll" href="#menu" data-hero-scroll>Scroll</a>
+      <a class="hero__scroll" href="#menu">Scroll</a>
     </section>
 
     <!-- ===== MENU (target of the nav "Menu" link) =======================
@@ -473,7 +467,7 @@
             <figure class="info-card__media">
               <img src="images/king-st-map.jpg" alt="Map: concourse level, 150 King St W, Toronto, on the block between University Ave and York St, from King St W north to Pearl St" width="900" height="941" loading="lazy">
             </figure>
-            <a class="btn btn--outline-dark" href="https://www.google.com/maps/search/?api=1&amp;query=150+King+St+W+Toronto+ON" target="_blank" rel="noopener">Get directions</a>
+            <a class="btn btn--primary" href="https://www.google.com/maps/search/?api=1&amp;query=150+King+St+W+Toronto+ON" target="_blank" rel="noopener">Get directions</a>
           </article>
 
           <article class="info-card">
@@ -491,7 +485,7 @@
             <figure class="info-card__media">
               <img src="images/one-york-map.jpg" alt="Map: 2nd floor, 1 York St, Toronto, at York St and Harbour St, just south of the Gardiner Expressway" width="900" height="1002" loading="lazy">
             </figure>
-            <a class="btn btn--outline-dark" href="https://www.google.com/maps/search/?api=1&amp;query=1+York+St+Toronto+ON" target="_blank" rel="noopener">Get directions</a>
+            <a class="btn btn--primary" href="https://www.google.com/maps/search/?api=1&amp;query=1+York+St+Toronto+ON" target="_blank" rel="noopener">Get directions</a>
           </article>
         </div>
       </div>
@@ -584,8 +578,8 @@
           <p>Both locations are open: King St W in the PATH and our new spot at One York Street.</p>
         </div>
         <div class="btn-group">
-          <a class="btn btn--light" href="#contact">Find us</a>
-          <a class="btn btn--outline" href="catering.html">Book Catering</a>
+          <a class="btn btn--primary" href="#contact">Find us</a>
+          <a class="btn btn--primary" href="catering.html">Book Catering</a>
         </div>
       </div>
     </section>
