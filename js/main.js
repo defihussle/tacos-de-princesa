@@ -4,7 +4,7 @@
    JS hooks use data-* attributes; classes are left to styling.
 
    0. Site config (online ordering URL)
-   1. Mobile navigation (slide-in panel)
+   1. Navigation (slide-in panel)
    2. Header background on scroll
    3. Reveal-on-scroll for [data-reveal] elements
    4. Footer year
@@ -27,12 +27,10 @@
   const nav = document.querySelector('[data-nav]');
   const backdrop = document.querySelector('[data-nav-backdrop]');
 
-  // Must match the desktop-nav breakpoint in styles.css (section 6).
-  const desktop = window.matchMedia('(min-width: 900px)');
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 
-  /* ---- 1. Mobile navigation ------------------------------------------- */
+  /* ---- 1. Navigation -------------------------------------------------- */
 
   function isMenuOpen() {
     return nav.classList.contains('is-open');
@@ -77,10 +75,6 @@
       }
     });
 
-    // Reset if the window is resized up to the desktop layout
-    desktop.addEventListener('change', function (event) {
-      if (event.matches) setMenu(false);
-    });
   }
 
 

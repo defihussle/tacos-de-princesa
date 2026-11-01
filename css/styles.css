@@ -85,6 +85,7 @@ html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
   scroll-padding-top: var(--header-h-scrolled); /* anchors clear the fixed header */
+  scrollbar-gutter: stable; /* page doesn't shift sideways when the menu locks scrolling */
 }
 
 /* Extra room above anchor targets so headings don't sit flush under the
@@ -108,7 +109,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Locks page scroll while the mobile menu is open (toggled in main.js) */
+/* Locks page scroll while the menu is open (toggled in main.js) */
 body.nav-open {
   overflow: hidden;
 }
@@ -425,10 +426,12 @@ p:last-child {
 
 /* ==========================================================================
    6. Header & navigation
-   Transparent by default so it overlays the hero. main.js adds .is-scrolled
-   after a short scroll, which fades in a dark translucent background.
+   Logo centred, hamburger on the right at every width; the links live in
+   the slide-in panel. Transparent by default so it overlays the hero.
+   main.js adds .is-scrolled after a short scroll, which fades in a dark
+   translucent background (a light one with .site-header--light).
    The background lives on ::before (not the header itself) because
-   backdrop-filter on the header would trap the fixed mobile panel inside it.
+   backdrop-filter on the header would trap the fixed slide-in panel inside it.
    ========================================================================== */
 .site-header {
   position: fixed;
@@ -463,12 +466,30 @@ p:last-child {
   opacity: 1;
 }
 
+/* Home page: the header sits on the light hero wall, so it stays clear with
+   dark ink, and the scrolled background is a frosted bar in the wall tone
+   (--hero-wall, #ececec) instead of the dark one. */
+.site-header--light {
+  color: var(--darker);
+}
+
+.site-header--light::before {
+  background: rgba(236, 236, 236, 0.88);
+  box-shadow: 0 6px 24px rgba(28, 29, 39, 0.08);
+}
+
+/* Equal side columns keep the logo dead-centre whatever the toggle does.
+   The panel and backdrop are fixed, so they take no grid cell. */
 .site-header__inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
   height: 100%;
+}
+
+.brand {
+  grid-column: 2;
+  display: flex;
 }
 
 .brand img {
@@ -481,10 +502,12 @@ p:last-child {
   opacity: 0.85;
 }
 
-/* --- Hamburger button (mobile only) --- */
+/* --- Hamburger button --- */
 .nav-toggle {
   position: relative;
   z-index: 3; /* stays above the slide-in panel so it can act as the close button */
+  grid-column: 3;
+  justify-self: end;
   display: inline-flex;
   flex-direction: column;
   justify-content: center;
@@ -495,7 +518,14 @@ p:last-child {
   padding: 10px;
   border: 0;
   background: none;
+  color: inherit;
   cursor: pointer;
+  transition: color var(--speed) var(--ease);
+}
+
+/* The open panel is dark, so on the light header the close (X) turns white */
+.site-header--light .nav-toggle[aria-expanded="true"] {
+  color: var(--text);
 }
 
 .nav-toggle__bar {
@@ -522,7 +552,7 @@ p:last-child {
   transform: translateY(-7px) rotate(-45deg);
 }
 
-/* --- Nav: slide-in panel on mobile --- */
+/* --- Nav: slide-in panel --- */
 .site-nav {
   position: fixed;
   top: 0;
@@ -621,83 +651,10 @@ p:last-child {
   transition: opacity 0.45s var(--ease);
 }
 
-/* --- Desktop: inline nav --- */
+/* --- Desktop: larger logo (the header is taller) --- */
 @media (min-width: 900px) {
   .brand img {
     height: 30px;
-  }
-
-  .nav-toggle,
-  .nav-backdrop {
-    display: none;
-  }
-
-  .site-nav {
-    position: static;
-    width: auto;
-    padding: 0;
-    overflow: visible;
-    background: none;
-    box-shadow: none;
-    transform: none;
-    visibility: visible;
-    transition: none;
-  }
-
-  .site-nav__list {
-    flex-direction: row;
-    align-items: center;
-    gap: 2.25rem;
-  }
-
-  .site-nav__link {
-    padding: 0.4rem 0;
-    font-family: var(--font-body);
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-  }
-
-  /* Animated pink underline */
-  .site-nav__link::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 2px;
-    background: var(--primary);
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform var(--speed) var(--ease);
-  }
-
-  .site-nav__link:hover::after,
-  .site-nav__link[aria-current="page"]::after {
-    transform: scaleX(1);
-  }
-
-  .site-nav__link[aria-current="page"] {
-    color: var(--text);
-  }
-
-  .site-nav__link[aria-current="page"]:hover {
-    color: var(--primary);
-  }
-
-  .site-nav__link--cta {
-    margin: 0;
-    padding: 0.75rem 1.4rem;
-    font-size: 0.75rem;
-  }
-
-  .site-nav__link--cta::after {
-    display: none;
-  }
-
-  .site-nav__link--cta:hover {
-    color: var(--text);
   }
 }
 
@@ -721,25 +678,6 @@ p:last-child {
   background: var(--hero-wall);
 }
 
-/* Dark band behind the transparent header so the white logo and nav links
-   stay legible on the light wall. Paints above the art. */
-.hero::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: -1;
-  height: calc(var(--header-h) + 1.5rem);
-  background: linear-gradient(
-    to bottom,
-    rgba(28, 29, 39, 0.8) 0,                  /* --darker at 80% */
-    rgba(28, 29, 39, 0.55) var(--header-h),
-    rgba(28, 29, 39, 0) 100%
-  );
-  pointer-events: none;
-}
-
 /* --- Art layers -----------------------------------------------------------
    .hero__layers     The space under the header (above the scalloped edge).
                      A size container, so the stage can scale in cq units.
@@ -760,7 +698,7 @@ p:last-child {
 .hero__layers {
   position: absolute;
   inset: var(--header-h) 0 1.5rem;
-  z-index: -2; /* under the header band (::before, -1) */
+  z-index: -2;
   container-type: size;
 }
 

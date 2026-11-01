@@ -33,14 +33,16 @@
 
   <!-- =====================================================================
        SITE HEADER (shared). Copy any change to all four pages; only the
-       aria-current="page" link differs from page to page.
+       aria-current="page" link differs from page to page, and the home
+       page alone uses site-header--light with the dark logo (logo.png),
+       because it sits on the light hero instead of a dark banner.
        "Order Now" links carry data-order-link: set the real ordering URL
        once in js/main.js (ORDER_URL) and they all update.
        ===================================================================== -->
-  <header class="site-header" data-header>
+  <header class="site-header site-header--light" data-header>
     <div class="container site-header__inner">
       <a class="brand" href="index.html">
-        <img src="images/logo-light.png" alt="Tacos De Princesa home" width="287" height="44">
+        <img src="images/logo.png" alt="Tacos De Princesa home" width="287" height="44">
       </a>
 
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu" data-nav-toggle>
