@@ -53,6 +53,7 @@
   --container: 1200px;
   --header-h: 72px;
   --header-h-scrolled: 64px;
+  --header-h-home: 164px;     /* home page, at the top: logo sits lower on the hero */
   --radius-sm: 8px;
   --radius: 14px;
   --radius-pill: 999px;
@@ -68,6 +69,7 @@
   :root {
     --header-h: 92px;
     --header-h-scrolled: 72px;
+    --header-h-home: 150px;
   }
 }
 
@@ -473,6 +475,13 @@ p:last-child {
   color: var(--darker);
 }
 
+/* Taller at the top so the logo sits lower; shrinks as usual on scroll.
+   It only overlaps the empty wall above the art (the art starts below
+   --header-h). */
+.site-header--light:not(.is-scrolled) {
+  height: var(--header-h-home);
+}
+
 .site-header--light::before {
   background: rgba(236, 236, 236, 0.88);
   box-shadow: 0 6px 24px rgba(28, 29, 39, 0.08);
@@ -607,31 +616,6 @@ p:last-child {
   color: var(--primary);
 }
 
-/* "Order Now" is a pink pill matching .btn--primary (colours, hover lift and glow) */
-.site-nav__link--cta {
-  margin-block: 0.75rem;
-  padding: 0.95rem 1.5rem;
-  border-radius: var(--radius-pill);
-  background: var(--primary);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-align: center;
-  text-transform: uppercase;
-  transition:
-    background-color var(--speed) var(--ease),
-    transform var(--speed) var(--ease),
-    box-shadow var(--speed) var(--ease);
-}
-
-.site-nav__link--cta:hover {
-  background: var(--primary-dark);
-  color: var(--text);
-  box-shadow: 0 10px 24px rgba(237, 21, 102, 0.35);
-  transform: translateY(-2px);
-}
-
 /* Dimmed page behind the open panel */
 .nav-backdrop {
   position: fixed;
@@ -678,6 +662,74 @@ p:last-child {
   background: var(--hero-wall);
 }
 
+/* --- Wall and roses ---------------------------------------------------------
+   .hero__wall  The textured wall, full width at every size. It is the bg
+                layer js/hero.js drifts down and scales on scroll, so it
+                starts --wall-bleed above the hero to keep the top covered.
+   .hero__rose  Rose cut-outs on the wall, behind the character, so they
+                never cover her. Phones: red top-left, grey bottom-right
+                (pink hidden). Desktop: grey to her left, red and pink to her
+                right, placed from the centre so they frame her at any width. */
+.hero__wall {
+  --wall-bleed: 12svh;
+  position: absolute;
+  top: calc(-1 * var(--wall-bleed));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -3;
+  background: var(--hero-wall) url("../images/hero/hero-wall.jpg") center / cover no-repeat;
+}
+
+.hero__rose {
+  position: absolute;
+  height: auto;
+  pointer-events: none;
+}
+
+.hero__rose--red {
+  top: calc(var(--wall-bleed) + var(--header-h-home) + 4px);
+  left: -22px;
+  width: 92px;
+  transform: rotate(-12deg);
+}
+
+.hero__rose--grey {
+  right: -34px;
+  bottom: 96px;
+  width: 132px;
+  transform: rotate(8deg);
+}
+
+.hero__rose--pink {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .hero__rose--grey {
+    top: 34%;
+    right: calc(50% + 300px);
+    bottom: auto;
+    width: clamp(180px, 18vw, 280px);
+    transform: rotate(-6deg);
+  }
+
+  .hero__rose--red {
+    top: 24%;
+    left: calc(50% + 320px);
+    width: clamp(120px, 11vw, 170px);
+    transform: rotate(10deg);
+  }
+
+  .hero__rose--pink {
+    display: block;
+    top: 62%;
+    left: calc(50% + 380px);
+    width: clamp(110px, 10vw, 150px);
+    transform: rotate(-8deg);
+  }
+}
+
 /* --- Art layers -----------------------------------------------------------
    .hero__layers     The space under the header (above the scalloped edge).
                      A size container, so the stage can scale in cq units.
@@ -690,9 +742,9 @@ p:last-child {
                      and the hair's face-hole are cut to fit each other, so
                      they move together; the hair adds its own sway, and the
                      backing moves with the hair.
-   .hero__layer      One PNG filling the frame. Stack: bg < base < hair.
+   .hero__layer      One PNG filling the frame. Stack: base < hair.
                      The hair is a cut-out (wall removed), so it can move
-                     freely over the bg.
+                     freely over the wall.
    Everything is placed with inset/width/height only, so transform stays
    free for animation. */
 .hero__layers {
@@ -726,23 +778,6 @@ p:last-child {
   inset: 0;
   width: 100%;
   height: 100%;
-}
-
-/* The bg PNG is the same wall cropped 3px further in from the left (920px
-   wide vs 923px), so offset it to line up pixel for pixel. Its edges are
-   feathered into --hero-wall; the top fade starts at 1% to hide a 4px dark
-   strip baked into the top of the PNG. */
-.hero__layer--bg {
-  --bg-fade:
-    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
-    linear-gradient(to bottom, transparent 1%, #000 8%, #000 95%, transparent);
-  z-index: 0;
-  left: calc(100% * 3 / 923);
-  width: calc(100% * 920 / 923);
-  -webkit-mask-image: var(--bg-fade);
-  -webkit-mask-composite: source-in;
-  mask-image: var(--bg-fade);
-  mask-composite: intersect;
 }
 
 /* Hair motion, set by js/hero.js: --hair-x/-y in % of the frame, --hair-rot

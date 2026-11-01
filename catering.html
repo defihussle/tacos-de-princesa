@@ -26,8 +26,8 @@
   <a class="skip-link" href="#main">Skip to content</a>
 
   <!-- =====================================================================
-       SITE HEADER (shared). Copy any change to all four pages; only the
-       aria-current="page" link differs from page to page.
+       SITE HEADER (shared with index.html). Everything but Catering lives
+       on index.html, so the other links point to its sections.
        "Order Now" links carry data-order-link: set the real ordering URL
        once in js/main.js (ORDER_URL) and they all update.
        ===================================================================== -->
@@ -46,10 +46,10 @@
       <nav class="site-nav" id="site-nav" aria-label="Main" data-nav>
         <ul class="site-nav__list">
           <li><a class="site-nav__link" href="index.html">Home</a></li>
-          <li><a class="site-nav__link" href="menu.html">Menu</a></li>
-          <li><a class="site-nav__link site-nav__link--cta" href="menu.html#order" data-order-link>Order Now</a></li>
+          <li><a class="site-nav__link" href="index.html#menu">Menu</a></li>
+          <li><a class="site-nav__link" href="index.html#order" data-order-link>Order Now</a></li>
           <li><a class="site-nav__link" href="catering.html" aria-current="page">Catering</a></li>
-          <li><a class="site-nav__link" href="contact.html">Contact</a></li>
+          <li><a class="site-nav__link" href="index.html#contact">Contact</a></li>
         </ul>
       </nav>
 
@@ -250,7 +250,8 @@
   </main>
 
   <!-- =====================================================================
-       SITE FOOTER (shared). Copy any change to all four pages.
+       SITE FOOTER (shared with index.html, where the links are in-page
+       anchors). Copy any other change to both pages.
        TODO: add the social media URLs.
        ===================================================================== -->
   <footer class="site-footer">
@@ -310,10 +311,10 @@
       <nav aria-label="Footer">
         <h2 class="site-footer__title">Explore</h2>
         <ul class="site-footer__list">
-          <li><a href="menu.html">Menu</a></li>
-          <li><a href="menu.html#order" data-order-link>Order Now</a></li>
+          <li><a href="index.html#menu">Menu</a></li>
+          <li><a href="index.html#order" data-order-link>Order Now</a></li>
           <li><a href="catering.html">Catering</a></li>
-          <li><a href="contact.html">Contact</a></li>
+          <li><a href="index.html#contact">Contact</a></li>
         </ul>
       </nav>
     </div>

@@ -19,7 +19,7 @@
 
   // Paste the real online-ordering URL here when it's ready. Every link marked
   // [data-order-link] (nav pill, hero, CTA strip, footer, menu page) will use it.
-  // While empty, those links go to the Order section on the menu page.
+  // While empty, those links go to the Order section on the home page.
   const ORDER_URL = '';
 
   const header = document.querySelector('[data-header]');
