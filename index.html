@@ -99,7 +99,7 @@
     </section>
 
     <!-- ===== MENU (target of the nav "Menu" link) =======================
-         Placeholder items and prices: replace with the real menu.
+         Items and prices match the official menu board.
          Each category is a .menu-category; each dish is a .menu-item.
          ================================================================ -->
     <section class="section" id="menu" aria-labelledby="menu-title">
@@ -108,170 +108,334 @@
         <div class="section-head" data-reveal>
           <p class="eyebrow">Nuestro men&uacute;</p>
           <h2 id="menu-title">Menu</h2>
-          <p class="lead">Tacos, bowls, sides and aguas frescas, made fresh every day at 150 King St W and One York Street.</p>
+          <p class="lead">Birria, tacos, burritos, salads, quesadillas and loaded nachos, made fresh every day at 150 King St W and One York Street.</p>
         </div>
 
         <nav class="menu-nav" aria-label="Menu categories">
+          <a class="chip" href="#birria">Birria</a>
           <a class="chip" href="#tacos">Tacos</a>
-          <a class="chip" href="#bowls">Bowls &amp; Burritos</a>
-          <a class="chip" href="#sides">Sides</a>
-          <a class="chip" href="#drinks">Drinks</a>
+          <a class="chip" href="#burritos">Burritos</a>
+          <a class="chip" href="#ensaladas">Ensaladas</a>
+          <a class="chip" href="#quesadillas">Quesadillas</a>
+          <a class="chip" href="#nachos">Nachos &amp; Fries</a>
           <a class="chip" href="#order">Order Online</a>
         </nav>
+
+        <!-- Birria Tacos -->
+        <section class="menu-category" id="birria" aria-labelledby="birria-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="birria-title">Birria Tacos</h2>
+            <p class="menu-category__note">Pulled brisket with onions + cilantro</p>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Birria Tacos</h3>
+                <span class="menu-item__price">$18.00</span>
+              </div>
+              <p class="menu-item__desc">Three tacos of pulled brisket with onions and cilantro.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Extra Birria</h3>
+                <span class="menu-item__price">$5.00</span>
+              </div>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Single Birria</h3>
+                <span class="menu-item__price">$7.00</span>
+              </div>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Mix + Match</h3>
+                <span class="menu-item__price">$20.00</span>
+              </div>
+              <p class="menu-item__desc">Any 3 tacos.</p>
+            </li>
+          </ul>
+        </section>
 
         <!-- Tacos -->
         <section class="menu-category" id="tacos" aria-labelledby="tacos-title" data-reveal>
           <header class="menu-category__head">
             <h2 id="tacos-title">Tacos</h2>
-            <p class="menu-category__note">Served on corn tortillas &middot; priced per taco</p>
+            <p class="menu-category__note">3 tacos served with salsa verde + chipotle crema</p>
           </header>
           <ul class="menu-list">
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Birria</h3>
-                <span class="menu-item__price">$6.00</span>
-              </div>
-              <p class="menu-item__desc">Slow-braised beef, melted cheese, consom&eacute; for dipping.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Carnitas</h3>
-                <span class="menu-item__price">$5.50</span>
-              </div>
-              <p class="menu-item__desc">Slow-cooked pork, salsa verde, pickled red onion.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Pollo Asado</h3>
-                <span class="menu-item__price">$5.00</span>
-              </div>
-              <p class="menu-item__desc">Citrus-marinated chicken, avocado crema, pico de gallo.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Baja Fish</h3>
-                <span class="menu-item__price">$6.00</span>
-              </div>
-              <p class="menu-item__desc">Crispy battered fish, cabbage slaw, chipotle mayo.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Hongos <span class="tag">V</span></h3>
-                <span class="menu-item__price">$5.00</span>
-              </div>
-              <p class="menu-item__desc">Roasted mushrooms, poblano rajas, queso fresco.</p>
-            </li>
-          </ul>
-        </section>
-
-        <!-- Bowls & Burritos -->
-        <section class="menu-category" id="bowls" aria-labelledby="bowls-title" data-reveal>
-          <header class="menu-category__head">
-            <h2 id="bowls-title">Bowls &amp; Burritos</h2>
-            <p class="menu-category__note">Choice of any taco filling</p>
-          </header>
-          <ul class="menu-list">
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Burrito</h3>
+                <h3 class="menu-item__name">Pollo</h3>
                 <span class="menu-item__price">$14.00</span>
               </div>
-              <p class="menu-item__desc">Flour tortilla, rice, beans, cheese, pico de gallo, crema.</p>
+              <p class="menu-item__desc">Chicken, onions, tomatoes, cilantro.</p>
             </li>
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Taco Bowl</h3>
+                <h3 class="menu-item__name">Carne Asada</h3>
                 <span class="menu-item__price">$15.00</span>
               </div>
-              <p class="menu-item__desc">Rice, beans, greens, salsa and guacamole.</p>
+              <p class="menu-item__desc">Steak, onions, cilantro.</p>
             </li>
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Quesadilla</h3>
-                <span class="menu-item__price">$12.00</span>
-              </div>
-              <p class="menu-item__desc">Flour tortilla, Oaxaca cheese, salsa roja on the side.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Quesabirria</h3>
+                <h3 class="menu-item__name">Barbacoa</h3>
                 <span class="menu-item__price">$16.00</span>
               </div>
-              <p class="menu-item__desc">Three crispy cheese-and-birria tacos with consom&eacute;.</p>
+              <p class="menu-item__desc">Pulled beef, onions, cilantro.</p>
             </li>
-          </ul>
-        </section>
-
-        <!-- Sides -->
-        <section class="menu-category" id="sides" aria-labelledby="sides-title" data-reveal>
-          <header class="menu-category__head">
-            <h2 id="sides-title">Sides</h2>
-          </header>
-          <ul class="menu-list">
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Chips &amp; Guacamole <span class="tag">V</span></h3>
+                <h3 class="menu-item__name">Surf + Turf</h3>
+                <span class="menu-item__price">$18.00</span>
+              </div>
+              <p class="menu-item__desc">Shrimp, steak, onions, cilantro.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Pescado</h3>
+                <span class="menu-item__price">$15.00</span>
+              </div>
+              <p class="menu-item__desc">Fish, red cabbage, onions, tomatoes, cilantro.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Camar&oacute;n</h3>
+                <span class="menu-item__price">$16.00</span>
+              </div>
+              <p class="menu-item__desc">Shrimp, red cabbage, onions, tomatoes, cilantro.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Veggie Chorizo <span class="tag">V</span></h3>
+                <span class="menu-item__price">$15.00</span>
+              </div>
+              <p class="menu-item__desc">Plant-based protein, tomatoes, bell peppers, onions, cilantro.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Extra Taco</h3>
+                <span class="menu-item__price">$4.00</span>
+              </div>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Single Taco</h3>
                 <span class="menu-item__price">$7.00</span>
               </div>
-              <p class="menu-item__desc">House-fried tortilla chips, guacamole made to order.</p>
             </li>
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Elote <span class="tag">V</span></h3>
-                <span class="menu-item__price">$6.00</span>
+                <h3 class="menu-item__name">Add Cheese</h3>
+                <span class="menu-item__price">$1.00</span>
               </div>
-              <p class="menu-item__desc">Grilled corn, chipotle mayo, cotija, lime.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Rice &amp; Beans</h3>
-                <span class="menu-item__price">$5.00</span>
-              </div>
-              <p class="menu-item__desc">Mexican red rice and frijoles.</p>
-            </li>
-            <li class="menu-item">
-              <div class="menu-item__head">
-                <h3 class="menu-item__name">Consom&eacute;</h3>
-                <span class="menu-item__price">$4.00</span>
-              </div>
-              <p class="menu-item__desc">Rich birria broth for dipping or sipping.</p>
             </li>
           </ul>
         </section>
 
-        <!-- Drinks -->
-        <section class="menu-category" id="drinks" aria-labelledby="drinks-title" data-reveal>
+        <!-- Burritos -->
+        <section class="menu-category" id="burritos" aria-labelledby="burritos-title" data-reveal>
           <header class="menu-category__head">
-            <h2 id="drinks-title">Drinks</h2>
+            <h2 id="burritos-title">Burritos</h2>
+            <p class="menu-category__note">Bowl or wrap &middot; toppings: rice, lettuce, corn, beans, cheese, tomatoes, green onions, chipotle crema, bell peppers, sour cream, onions, cilantro, salsa verde</p>
           </header>
           <ul class="menu-list">
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Horchata</h3>
-                <span class="menu-item__price">$4.50</span>
+                <h3 class="menu-item__name">Pollo</h3>
+                <span class="menu-item__price">$15.00</span>
               </div>
-              <p class="menu-item__desc">Sweet rice and cinnamon agua fresca.</p>
+              <p class="menu-item__desc">Chicken.</p>
             </li>
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Jamaica</h3>
-                <span class="menu-item__price">$4.50</span>
+                <h3 class="menu-item__name">Carne Asada</h3>
+                <span class="menu-item__price">$16.00</span>
               </div>
-              <p class="menu-item__desc">Hibiscus agua fresca.</p>
+              <p class="menu-item__desc">Steak.</p>
             </li>
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Jarritos</h3>
-                <span class="menu-item__price">$3.50</span>
+                <h3 class="menu-item__name">Barbacoa</h3>
+                <span class="menu-item__price">$17.00</span>
               </div>
-              <p class="menu-item__desc">Assorted Mexican sodas.</p>
+              <p class="menu-item__desc">Pulled beef.</p>
             </li>
             <li class="menu-item">
               <div class="menu-item__head">
-                <h3 class="menu-item__name">Mexican Coke</h3>
-                <span class="menu-item__price">$4.00</span>
+                <h3 class="menu-item__name">Veggie Chorizo <span class="tag">V</span></h3>
+                <span class="menu-item__price">$16.00</span>
               </div>
-              <p class="menu-item__desc">Made with cane sugar, in the glass bottle.</p>
+              <p class="menu-item__desc">Plant-based protein.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Pescado</h3>
+                <span class="menu-item__price">$16.00</span>
+              </div>
+              <p class="menu-item__desc">Fish.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Camar&oacute;n</h3>
+                <span class="menu-item__price">$17.00</span>
+              </div>
+              <p class="menu-item__desc">Shrimp.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Surf + Turf</h3>
+                <span class="menu-item__price">$19.00</span>
+              </div>
+              <p class="menu-item__desc">Shrimp and steak.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Add Guacamole</h3>
+                <span class="menu-item__price">$3.00</span>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Ensaladas -->
+        <section class="menu-category" id="ensaladas" aria-labelledby="ensaladas-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="ensaladas-title">Ensaladas</h2>
+            <p class="menu-category__note">With your choice of dressing</p>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Fiesta</h3>
+                <span class="menu-item__price">$11.00</span>
+              </div>
+              <p class="menu-item__desc">Arugula, mango, avocado, bell peppers, cherry tomatoes, red onions, cotija cheese, almonds.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Santa Fe</h3>
+                <span class="menu-item__price">$11.00</span>
+              </div>
+              <p class="menu-item__desc">Lettuce, black beans, corn, red onions, cherry tomatoes, tortilla strips.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Jalape&ntilde;o Lime Quinoa</h3>
+                <span class="menu-item__price">$11.00</span>
+              </div>
+              <p class="menu-item__desc">Kale, quinoa, corn, black beans, pickled onions, bell peppers, jalape&ntilde;os, cilantro, pumpkin seeds.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Charred Pineapple &amp; Bean</h3>
+                <span class="menu-item__price">$11.00</span>
+              </div>
+              <p class="menu-item__desc">Mixed greens, pineapple, black beans, corn, peppers, cilantro, cashews.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Add a Protein</h3>
+                <span class="menu-item__price">$4&ndash;$8</span>
+              </div>
+              <p class="menu-item__desc">Pollo $4 &middot; Carne asada $5 &middot; Pescado $5 &middot; Camar&oacute;n $6 &middot; Veggie chorizo $5 &middot; Surf + turf $8</p>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Quesadillas -->
+        <section class="menu-category" id="quesadillas" aria-labelledby="quesadillas-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="quesadillas-title">Quesadillas</h2>
+            <p class="menu-category__note">Cheese, onions + peppers</p>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Cheese <span class="tag">V</span></h3>
+                <span class="menu-item__price">$13.00</span>
+              </div>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Pollo</h3>
+                <span class="menu-item__price">$14.00</span>
+              </div>
+              <p class="menu-item__desc">Chicken.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Carne Asada</h3>
+                <span class="menu-item__price">$15.00</span>
+              </div>
+              <p class="menu-item__desc">Steak.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Barbacoa</h3>
+                <span class="menu-item__price">$16.00</span>
+              </div>
+              <p class="menu-item__desc">Pulled beef.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Camar&oacute;n</h3>
+                <span class="menu-item__price">$16.00</span>
+              </div>
+              <p class="menu-item__desc">Shrimp.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Surf + Turf</h3>
+                <span class="menu-item__price">$18.00</span>
+              </div>
+              <p class="menu-item__desc">Shrimp and steak.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Veggie Chorizo <span class="tag">V</span></h3>
+                <span class="menu-item__price">$15.00</span>
+              </div>
+              <p class="menu-item__desc">Plant-based protein.</p>
+            </li>
+          </ul>
+        </section>
+
+        <!-- Loaded Nachos or Fries -->
+        <section class="menu-category" id="nachos" aria-labelledby="nachos-title" data-reveal>
+          <header class="menu-category__head">
+            <h2 id="nachos-title">Loaded Nachos or Fries</h2>
+            <p class="menu-category__note">Cheese, tomatoes, green onions + sour cream</p>
+          </header>
+          <ul class="menu-list">
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Classic <span class="tag">V</span></h3>
+                <span class="menu-item__price">$10.00</span>
+              </div>
+              <p class="menu-item__desc">Cheese.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Pollo</h3>
+                <span class="menu-item__price">$12.00</span>
+              </div>
+              <p class="menu-item__desc">Chicken.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Carne Asada</h3>
+                <span class="menu-item__price">$13.00</span>
+              </div>
+              <p class="menu-item__desc">Beef.</p>
+            </li>
+            <li class="menu-item">
+              <div class="menu-item__head">
+                <h3 class="menu-item__name">Veggie Chorizo <span class="tag">V</span></h3>
+                <span class="menu-item__price">$13.00</span>
+              </div>
+              <p class="menu-item__desc">Plant-based protein.</p>
             </li>
           </ul>
         </section>
