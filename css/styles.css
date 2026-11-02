@@ -771,9 +771,10 @@ p:last-child {
 /* --- Art -------------------------------------------------------------------
    .hero__layers  The space under the header (above the bottom fade).
                   A size container, so the art can scale in cq units.
-   .hero__art     One static image (584x562), as large as fits and centred.
-                  Its edges fade out so its own wall texture melts into
-                  .hero__wall. */
+   .hero__art     One static transparent image (1864x1620, with clear space
+                  above the mandala), as large as fits and centred on
+                  .hero__wall. The cut-off ends of the hair at
+                  the bottom (and a paint fleck at the top edge) fade out. */
 .hero__layers {
   position: absolute;
   inset: var(--header-h) 0 1.5rem;
@@ -808,23 +809,17 @@ p:last-child {
   left: 50%;
   width: auto;
   max-width: none;
-  height: min(100cqh, 100cqw * 562 / 584);
+  height: min(100cqh, 100cqw * 1620 / 1864);
   transform: translate(-50%, -50%);
-  -webkit-mask-image:
-    linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
-    linear-gradient(transparent, #000 6%, #000 94%, transparent);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
-    linear-gradient(transparent, #000 6%, #000 94%, transparent);
-  mask-composite: intersect;
+  -webkit-mask-image: linear-gradient(transparent 6%, #000 8%, #000 87%, transparent 98%);
+  mask-image: linear-gradient(transparent 6%, #000 8%, #000 87%, transparent 98%);
 }
 
-/* Phones: larger, letting the faded mandala edges run off-screen (the hair
-   and flowers sit between 18% and 84% of the width, so they stay in view) */
+/* Phones: larger, letting the soft outer mandala and leaves run off-screen
+   (the hair and flowers sit between about 19% and 80% of the width) */
 @media (max-width: 899px) {
   .hero__art {
-    height: min(100cqh, 128cqw * 562 / 584);
+    height: min(100cqh, 128cqw * 1620 / 1864);
   }
 }
 
