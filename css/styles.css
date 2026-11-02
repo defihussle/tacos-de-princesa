@@ -269,6 +269,11 @@ p:last-child {
 }
 .section--warm  { background: var(--bg-warm); }
 
+/* The hero's white wall texture (same image and base colour) */
+.section--wall {
+  background: #ececec url("../images/hero/hero-wall.jpg") center / cover no-repeat;
+}
+
 .section--dark {
   background: var(--dark);
   color: var(--text);
