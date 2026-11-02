@@ -56,7 +56,7 @@
   /* Layout */
   --container: 1200px;
   --header-h: 72px;
-  --header-h-scrolled: 64px;
+  --header-h-scrolled: 76px;  /* phones: still clearly visible once scrolled */
   --header-h-home: 164px;     /* home page, at the top: logo sits lower on the hero */
   --radius-sm: 8px;
   --radius: 14px;
@@ -541,6 +541,13 @@ p:last-child {
    with the width (9vw, 28-38px) so it never crowds the hamburger. */
 .site-header--light:not(.is-scrolled) .brand img {
   height: clamp(28px, 9vw, 38px);
+}
+
+/* Phones, scrolled: a touch bigger than the base logo */
+@media (max-width: 899px) {
+  .site-header.is-scrolled .brand img {
+    height: 32px;
+  }
 }
 
 .brand:hover img {
@@ -1644,6 +1651,25 @@ p:last-child {
 
 .contact-details a {
   border-bottom: 1px solid rgba(237, 21, 102, 0.4);
+}
+
+/* Decorative hero rose under the catering contact details. Phones: small,
+   tucked to the right beside phone and email. Desktop: larger, centred in
+   the space beside the form. */
+.inquiry-rose {
+  display: block;
+  width: 96px;
+  height: auto;
+  margin: -6.5rem 0 0 auto;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+@media (min-width: 900px) {
+  .inquiry-rose {
+    width: 220px;
+    margin: 4rem auto 0;
+  }
 }
 
 
