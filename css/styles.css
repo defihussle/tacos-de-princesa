@@ -1189,6 +1189,31 @@ p:last-child {
   margin: 0 0 0.5rem;
 }
 
+/* Locations: the cards share rows (title, address, hours, phone, map,
+   buttons) through subgrid, so each row lines up across both cards even
+   when one address runs to two lines. Older browsers fall back to the
+   plain flex cards. */
+@supports (grid-template-rows: subgrid) {
+  .locations-grid .info-card {
+    display: grid;
+    grid-row: span 6;
+    grid-template-rows: subgrid;
+    row-gap: 1rem;
+  }
+
+  .locations-grid .info-list {
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0.9rem;
+    margin-bottom: 0;
+  }
+
+  /* Buttons sit at the bottom of their row */
+  .locations-grid .btn-group {
+    align-self: end;
+  }
+}
+
 .info-list dt {
   font-size: 0.7rem;
   font-weight: 700;
