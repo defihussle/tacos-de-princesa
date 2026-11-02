@@ -1259,6 +1259,19 @@ p:last-child {
   margin-bottom: 1.75rem;
 }
 
+/* Storefront photo in the old tall (4:5) placeholder frame; cropped to keep
+   the sign, mural and counter in view */
+.about-teaser__photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: 42% 50%;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
 /* --- Order Now CTA strip --- */
 .cta-strip {
   position: relative;
