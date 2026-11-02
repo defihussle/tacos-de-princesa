@@ -1074,6 +1074,15 @@ p:last-child {
   border-radius: 0;
 }
 
+/* Photo at the top of a card, same 4:3 frame as the placeholder */
+.card__media {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
 .card__body {
   display: flex;
   flex: 1;
