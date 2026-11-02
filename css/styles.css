@@ -733,9 +733,8 @@ p:last-child {
 
 /* ==========================================================================
    7. Home hero
-   Full-viewport stage for the layered Princesa art (images/hero/). No copy:
-   the illustration is the whole hero, centred under the nav. Static apart
-   from a slow breeze in the lower curls (see .hero__layer--hair-flow).
+   Full-viewport stage for the Princesa illustration (images/hero/). No copy:
+   the illustration is the whole hero, centred under the nav. Fully static.
    ========================================================================== */
 .hero {
   --hero-wall: #ececec; /* average colour of the wall texture in the art */
@@ -748,14 +747,10 @@ p:last-child {
   background: var(--hero-wall);
 }
 
-/* --- Wall and roses ---------------------------------------------------------
-   .hero__wall  The textured wall, full width at every size. It starts
-                --wall-bleed above the hero (sizing for the roses is based
-                on this box, so it stays as it was when it moved).
-   .hero__rose  Rose cut-outs on the wall, behind the character, so they
-                never cover her. Phones: red top-left, grey bottom-right
-                (pink hidden). Desktop: grey to her left, red and pink to her
-                right, placed from the centre so they frame her at any width. */
+/* --- Wall ------------------------------------------------------------------
+   .hero__wall  The textured wall, full width at every size, so it fills the
+                space either side of the art. It starts --wall-bleed above the
+                hero, behind the transparent header. */
 .hero__wall {
   --wall-bleed: 12svh;
   position: absolute;
@@ -767,72 +762,12 @@ p:last-child {
   background: var(--hero-wall) url("../images/hero/hero-wall.jpg") center / cover no-repeat;
 }
 
-.hero__rose {
-  position: absolute;
-  height: auto;
-  pointer-events: none;
-}
-
-.hero__rose--red {
-  top: calc(var(--wall-bleed) + var(--header-h-home) + 4px);
-  left: -22px;
-  width: 92px;
-  transform: rotate(-12deg);
-}
-
-.hero__rose--grey {
-  right: -34px;
-  bottom: 96px;
-  width: 132px;
-  transform: rotate(8deg);
-}
-
-.hero__rose--pink {
-  display: none;
-}
-
-@media (min-width: 900px) {
-  .hero__rose--grey {
-    top: 34%;
-    right: calc(50% + 300px);
-    bottom: auto;
-    width: clamp(180px, 18vw, 280px);
-    transform: rotate(-6deg);
-  }
-
-  .hero__rose--red {
-    top: 24%;
-    left: calc(50% + 320px);
-    width: clamp(120px, 11vw, 170px);
-    transform: rotate(10deg);
-  }
-
-  .hero__rose--pink {
-    display: block;
-    top: 62%;
-    left: calc(50% + 380px);
-    width: clamp(110px, 10vw, 150px);
-    transform: rotate(-8deg);
-  }
-}
-
-/* --- Art layers -----------------------------------------------------------
-   .hero__layers     The space under the header (above the scalloped edge).
-                     A size container, so the stage can scale in cq units.
-   .hero__stage      The 923x900 frame every layer shares, so the layers stay
-                     pixel-aligned at any size. Sized and placed by the
-                     character's box inside the frame (x 98-760, y 126-823),
-                     so the character fills the space without being cropped;
-                     the empty wall margins may run off-screen.
-   .hero__character  Groups base + hair and holds the seam backing. The face
-                     and the hair's face-hole are cut to fit each other, so
-                     they move together; the hair adds its own sway, and the
-                     backing moves with the hair.
-   .hero__layer      One PNG filling the frame. Stack: base < hair.
-                     The hair is a cut-out (wall removed), so it can move
-                     freely over the wall.
-   Everything is placed with inset/width/height only, so transform stays
-   free for animation. */
+/* --- Art -------------------------------------------------------------------
+   .hero__layers  The space under the header (above the scalloped edge).
+                  A size container, so the art can scale in cq units.
+   .hero__art     One static image (584x562), as large as fits and centred.
+                  Its edges fade out so its own wall texture melts into
+                  .hero__wall. */
 .hero__layers {
   position: absolute;
   inset: var(--header-h) 0 1.5rem;
@@ -840,103 +775,29 @@ p:last-child {
   container-type: size;
 }
 
-.hero__stage {
-  /* Character height: most of the height, or on phones as wide as it can
-     be with room for the paint splatter on the left. Character is
-     662x697 in the frame, so this is ~96% of the width at rest. */
-  --char-h: min(88cqh, 102cqw - 0.5rem);
-  --stage-h: calc(var(--char-h) * 900 / 697);
-  --stage-w: calc(var(--stage-h) * 923 / 900);
+.hero__art {
   position: absolute;
-  /* Centre the character (46.5% / 52.7% into the frame), not the frame,
-     nudged slightly left to balance the hair's rightward sway */
-  left: calc(50% - var(--stage-w) * 0.471);
-  top: calc(50% - var(--stage-h) * 0.527);
-  width: var(--stage-w);
-  height: var(--stage-h);
+  top: 50%;
+  left: 50%;
+  width: auto;
+  max-width: none;
+  height: min(100cqh, 100cqw * 562 / 584);
+  transform: translate(-50%, -50%);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
+    linear-gradient(transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
+    linear-gradient(transparent, #000 6%, #000 94%, transparent);
+  mask-composite: intersect;
 }
 
-.hero__character,
-.hero__layer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-/* The hero is static. These hair-offset variables are all 0 (no movement);
-   the hair and the seam backing both use --hair-move, so they stay lined up
-   if an offset is ever set. */
-.hero__character {
-  --hair-x: 0;
-  --hair-y: 0;
-  --hair-rot: 0;
-  --hair-skew: 0;
-  --wind-x: 0;
-  --wind-rot: 0;
-  --wind: 0;
-  --hair-move:
-    translate(calc(var(--stage-w) * (var(--hair-x) + var(--wind-x) * var(--wind)) / 100),
-              calc(var(--stage-h) * var(--hair-y) / 100))
-    rotate(calc((var(--hair-rot) + var(--wind-rot) * var(--wind)) * 1deg))
-    skewX(calc(var(--hair-skew) * 1deg));
-  z-index: 1;
-}
-
-/* The face and hair cut-outs leave hairline gaps where the light bg would
-   show through. This dark backing sits under the face, sized to the hair's
-   face-hole, so at rest it only shows in those gaps, in the hair colour
-   from the original artwork. It reaches past the face-hole on the top and
-   left (still hidden under the hair) and stops just above the chest, where
-   the gaps are skin-toned in the original. It moves with the hair (same
-   transform and pivot), so it never slides out from under it. */
-.hero__character::before {
-  content: "";
-  position: absolute;
-  inset: 23% 23.5% 25.6% 28%;
-  background: #2f1e20;
-  clip-path: polygon(0 0, 80% 0, 100% 15%, 100% 100%, 0 100%); /* clear of the big rose's edge */
-  transform: var(--hair-move);
-  /* The hair's pivot (50% 85% of the frame) measured from this box */
-  transform-origin: calc(var(--stage-w) * 0.22) calc(var(--stage-h) * 0.62);
-}
-
-.hero__layer--base {
-  z-index: 1;
-}
-
-.hero__layer--hair {
-  z-index: 2;
-  transform: var(--hair-move);
-  transform-origin: 50% 85%;
-  /* Ends at 70% of the frame (the shoulders); below that the flowing copy
-     takes over, so the moving curls never show a static double */
-  -webkit-mask-image: linear-gradient(#000 70%, transparent 70%);
-  mask-image: linear-gradient(#000 70%, transparent 70%);
-}
-
-/* --- Breeze in the lower hair ---------------------------------------------
-   A copy of the hair, faded in from 60% to 70% of the frame (just below the
-   chin), sways with a tiny skew pivoting at 62%: no movement at the chin
-   line, growing to ~2-3px at the curl tips. Across the fade the static hair
-   is still fully drawn underneath and the copy has barely moved, so there is
-   no seam; the face, scalp, upper hair and roses never move. */
-.hero__layer--hair-flow {
-  z-index: 3;
-  -webkit-mask-image: linear-gradient(transparent 60%, #000 70%);
-  mask-image: linear-gradient(transparent 60%, #000 70%);
-  transform-origin: 50% 62%;
-  animation: hair-breeze 7s ease-in-out infinite alternate;
-}
-
-@keyframes hair-breeze {
-  from { transform: skewX(-0.6deg); }
-  to   { transform: skewX(0.6deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero__layer--hair-flow {
-    animation: none;
+/* Phones: larger, letting the faded mandala edges run off-screen (the hair
+   and flowers sit between 18% and 84% of the width, so they stay in view) */
+@media (max-width: 899px) {
+  .hero__art {
+    height: min(100cqh, 128cqw * 562 / 584);
   }
 }
 

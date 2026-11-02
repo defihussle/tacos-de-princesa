@@ -89,26 +89,13 @@
            the illustration is the whole visible hero. -->
       <h1 class="visually-hidden" id="hero-title">Tacos De Princesa</h1>
 
-      <!-- Full-width textured wall with the roses on it. -->
-      <div class="hero__wall" aria-hidden="true">
-        <img class="hero__rose hero__rose--grey" src="images/hero/rose-grey.png" alt="" width="331" height="308">
-        <img class="hero__rose hero__rose--red" src="images/hero/rose-red.png" alt="" width="181" height="177">
-        <img class="hero__rose hero__rose--pink" src="images/hero/rose-pink.png" alt="" width="180" height="183">
-      </div>
+      <!-- Full-width textured wall: fills the space either side of the art. -->
+      <div class="hero__wall" aria-hidden="true"></div>
 
-      <!-- Layered character art. Both layers share one 923x900 frame
-           (.hero__stage) so they stay aligned at any size: base (face),
-           then hair (a cut-out) on top. Only the lower curls move (a slow sway);
-           see styles.css §7. -->
+      <!-- The Princesa illustration, on its own matching wall texture.
+           Its edges fade into .hero__wall, so there is no visible seam. -->
       <div class="hero__layers" aria-hidden="true">
-        <div class="hero__stage">
-          <div class="hero__character">
-            <img class="hero__layer hero__layer--base" src="images/hero/pricessa-base.png" alt="" width="923" height="900" fetchpriority="high">
-            <img class="hero__layer hero__layer--hair" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900" fetchpriority="high">
-            <!-- Same hair image, showing only the lower curls, which sway gently -->
-            <img class="hero__layer hero__layer--hair-flow" src="images/hero/pricessa-hair-cutout.png" alt="" width="923" height="900">
-          </div>
-        </div>
+        <img class="hero__art" src="images/hero/princesa-hero.jpg" alt="" width="584" height="562" fetchpriority="high">
       </div>
 
       <a class="hero__scroll" href="#menu">Scroll</a>
