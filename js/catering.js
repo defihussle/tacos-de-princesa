@@ -33,7 +33,7 @@
 
     // CDN blocked or offline: don't pretend it was sent
     if (!window.emailjs) {
-      setStatus('Sorry, the form couldn’t load. Please call 647-298-2267 or email tacosprincesa@gmail.com.');
+      setStatus('Sorry, the form couldn’t load. Please call 647-298-2267 or email Catering.tacosprincesa@gmail.com.');
       return;
     }
 

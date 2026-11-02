@@ -763,7 +763,7 @@ p:last-child {
 }
 
 /* --- Art -------------------------------------------------------------------
-   .hero__layers  The space under the header (above the scalloped edge).
+   .hero__layers  The space under the header (above the bottom fade).
                   A size container, so the art can scale in cq units.
    .hero__art     One static image (584x562), as large as fits and centred.
                   Its edges fade out so its own wall texture melts into
@@ -773,6 +773,27 @@ p:last-child {
   inset: var(--header-h) 0 1.5rem;
   z-index: -2;
   container-type: size;
+}
+
+/* Soft fade from the wall into the page background below the hero. Drawn
+   inside .hero__layers (reaching down to the hero bottom), over the wall and
+   the art but under the roses, so they are never washed out. */
+.hero__layers::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1.5rem;
+  left: 0;
+  z-index: 0;
+  height: 96px;
+  background: linear-gradient(rgba(250, 250, 250, 0), var(--bg-light));
+  pointer-events: none;
+}
+
+@media (min-width: 900px) {
+  .hero__layers::after {
+    height: 160px;
+  }
 }
 
 .hero__art {
@@ -1586,7 +1607,7 @@ p:last-child {
   display: block;
   width: 96px;
   height: auto;
-  margin: -6.5rem 0 0 auto;
+  margin: -8rem 0 0 auto;
   transform: rotate(-8deg);
   pointer-events: none;
 }
