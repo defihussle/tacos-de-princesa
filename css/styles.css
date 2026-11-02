@@ -362,14 +362,20 @@ p:last-child {
   transform: translateY(-2px);
 }
 
+/* Pink pill; on hover it inverts to white with pink text and a pink ring.
+   The 2px pink border is there at rest too, so the size never changes. */
 .btn--primary {
+  border-color: var(--primary);
   background: var(--primary);
   color: var(--text);
 }
 
-.btn--primary:hover {
-  background: var(--primary-dark);
-  box-shadow: 0 10px 24px rgba(237, 21, 102, 0.35);
+.btn--primary:hover,
+.btn--primary:focus-visible {
+  border-color: var(--primary);
+  background: var(--white);
+  color: var(--primary);
+  box-shadow: 0 10px 24px rgba(237, 21, 102, 0.2);
 }
 
 /* White outline — for dark or pink backgrounds */
@@ -1197,7 +1203,8 @@ p:last-child {
 }
 
 /* Decorative circles */
-/* Pink buttons on the pink strip: a white ring keeps them visible */
+/* Pink buttons on the pink strip: a white ring keeps them visible (also on
+   hover, where the button turns white and a pink ring would vanish) */
 .cta-strip .btn--primary {
   border-color: var(--white);
 }
@@ -1437,7 +1444,9 @@ p:last-child {
 }
 
 .btn--primary:disabled {
+  border-color: var(--primary);
   background: var(--primary);
+  color: var(--text);
 }
 
 
