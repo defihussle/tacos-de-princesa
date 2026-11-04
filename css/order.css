@@ -14,6 +14,7 @@
    9.  Quantity stepper
    10. Pickup + payment steps
    11. Toast + footer
+   12. Confirmation
    ========================================================================== */
 
 
@@ -1190,6 +1191,7 @@ html:has(.item-dialog[open]) {
 
 /* ==========================================================================
    11. Toast + footer
+   12. Confirmation
    ========================================================================== */
 .toast {
   position: fixed;
@@ -1250,4 +1252,138 @@ html:has(.item-dialog[open]) {
 
 .order-footer a:hover {
   color: var(--primary-light);
+}
+
+
+/* ==========================================================================
+   12. Confirmation
+   The order is in the main column, so the cart and order bar step aside.
+   ========================================================================== */
+.order-page[data-step="confirmed"] .cart,
+.order-page[data-step="confirmed"] .cart-bar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .order-page[data-step="confirmed"] .order__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.confirm {
+  display: grid;
+  gap: 1.75rem;
+  max-width: 680px;
+  margin-inline: auto;
+}
+
+.confirm__head {
+  text-align: center;
+}
+
+.confirm__check {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--text);
+  box-shadow: 0 12px 28px rgba(237, 21, 102, 0.3);
+}
+
+.confirm__check svg {
+  width: 30px;
+  height: 30px;
+}
+
+.confirm__head .eyebrow {
+  margin-bottom: 0.5rem;
+}
+
+.confirm__head .order-step__title {
+  margin-bottom: 0.5rem;
+}
+
+.confirm__test {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: rgba(246, 179, 60, 0.16); /* --accent, light */
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.confirm .recap {
+  padding: 1.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-light);
+}
+
+.confirm__subtitle {
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.confirm-lines {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.confirm-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.confirm-line__qty {
+  flex: none;
+  min-width: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.confirm-line__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirm-line__name {
+  font-weight: 700;
+}
+
+.confirm-line__price {
+  flex: none;
+  font-weight: 700;
+}
+
+.confirm__totals {
+  margin: 0;
+}
+
+.confirm__sms {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid rgba(237, 21, 102, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(237, 21, 102, 0.04);
+  font-size: 0.95rem;
+}
+
+.confirm__sms svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--primary);
+}
+
+.confirm__actions {
+  justify-content: center;
 }

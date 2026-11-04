@@ -158,8 +158,49 @@
               <p class="pay-frame__text">Clover&rsquo;s secure payment form will appear here.</p>
             </div>
 
-            <button class="btn btn--primary btn--block" type="button" disabled data-pay>Pay</button>
-            <p class="form-status" role="status">Payment isn&rsquo;t connected yet, so no order is placed and no card is charged.</p>
+            <!-- Until Clover is connected (CONFIG.paymentConnected in js/order.js)
+                 this places a test order and goes to the confirmation. -->
+            <button class="btn btn--primary btn--block" type="button" data-pay>Pay</button>
+            <p class="form-status" role="status">Payment isn&rsquo;t connected yet, so this places a test order: no card is charged and nothing goes to the kitchen.</p>
+          </div>
+        </section>
+
+        <!-- ===== STEP 4: CONFIRMATION (filled by js/order.js) =========== -->
+        <section class="order-step" data-step-panel="confirmed" aria-labelledby="confirmed-title" hidden>
+          <div class="form-panel confirm">
+            <div class="confirm__head">
+              <span class="confirm__check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              </span>
+              <p class="eyebrow">Order #<span data-confirm-number></span></p>
+              <h2 class="order-step__title" id="confirmed-title" tabindex="-1">Order confirmed</h2>
+              <p class="lead">Thanks, <span data-confirm-name></span>! We&rsquo;ll have it ready for pickup.</p>
+            </div>
+
+            <p class="confirm__test" data-confirm-test>Test order: payment isn&rsquo;t connected yet, so nothing was charged and the kitchen hasn&rsquo;t received it.</p>
+
+            <dl class="recap" data-confirm-pickup></dl>
+
+            <div>
+              <h3 class="confirm__subtitle">Your order</h3>
+              <ul class="confirm-lines" data-confirm-lines></ul>
+              <dl class="cart__totals confirm__totals">
+                <div><dt>Subtotal</dt><dd data-confirm-subtotal></dd></div>
+                <div><dt data-confirm-tax-label>HST</dt><dd data-confirm-tax></dd></div>
+                <div class="cart__total"><dt>Total</dt><dd data-confirm-total></dd></div>
+              </dl>
+            </div>
+
+            <!-- SMS is a placeholder: the backend will send this text later -->
+            <p class="confirm__sms">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>We&rsquo;ll text a confirmation to <strong data-confirm-phone></strong>.</span>
+            </p>
+
+            <div class="btn-group confirm__actions">
+              <button class="btn btn--primary" type="button" data-new-order>Start a new order</button>
+              <a class="btn btn--outline-dark" href="index.html">Back to home</a>
+            </div>
           </div>
         </section>
       </div>

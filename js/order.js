@@ -15,6 +15,7 @@
    9.  Pickup times
    10. Pickup form
    11. Payment step
+   12. Confirmation
    ========================================================================== */
 
 (function () {
@@ -34,6 +35,9 @@
     lastSlotBeforeClose: 15, // last pickup slot = closing time minus this
     daysAhead: 7,            // when closed, look this far ahead for the next open day
     storageKey: 'tdp-order-cart-v1',
+    // Until Clover is connected, the Pay button places a test order: it goes
+    // straight to the confirmation, charges nothing and sends nothing.
+    paymentConnected: false,
   };
 
   // Hours match the footer. days: 0 = Sunday ... 6 = Saturday.
@@ -501,7 +505,7 @@
     $('[data-tax]').textContent = fmt(t.tax);
     $('[data-total]').textContent = fmt(t.total);
     checkoutBtn.disabled = !cart.length;
-    $('[data-pay]').textContent = 'Pay ' + fmt(t.total);
+    $('[data-pay]').textContent = (CONFIG.paymentConnected ? 'Pay ' : 'Place test order · ') + fmt(t.total);
 
     // Phone order bar: shown once there's something in the cart
     $('[data-cart-count]').textContent = t.count;
@@ -511,7 +515,8 @@
     if (!cart.length) setSheet(false);
 
     // Emptied the cart part-way through checkout: back to the menu
-    if (!cart.length && document.body.dataset.step !== 'menu') goTo('menu');
+    const step = document.body.dataset.step;
+    if (!cart.length && step !== 'menu' && step !== 'confirmed') goTo('menu');
     if (document.body.dataset.step === 'payment') renderRecap();
   }
 
@@ -587,14 +592,16 @@
 
 
   /* ---- 8. Steps ------------------------------------------------------- */
-  // menu -> details (pickup) -> payment. Each step is a history entry, so the
-  // phone's back button goes back a step.
+  // menu -> details (pickup) -> payment -> confirmed. Each step is a history
+  // entry, so the phone's back button goes back a step.
 
-  const STEPS = ['menu', 'details', 'payment'];
-  let pickup = null; // filled by the pickup form
+  const STEPS = ['menu', 'details', 'payment', 'confirmed'];
+  let pickup = null;    // filled by the pickup form
+  let confirmed = null; // the placed order, once there is one
 
   function goTo(step, fromHistory) {
-    if (step !== 'menu' && !cart.length) step = 'menu';
+    if (step === 'confirmed' && !confirmed) step = 'menu';
+    if (step !== 'menu' && step !== 'confirmed' && !cart.length) step = 'menu';
     if (step === 'payment' && !pickup) step = 'details';
     const changed = document.body.dataset.step !== step;
     document.body.dataset.step = step;
@@ -831,20 +838,82 @@
     };
   }
 
-  function renderRecap() {
-    if (!pickup || !cart.length) return;
-    const order = buildOrder();
-    const location = LOCATIONS[order.location];
-    const rows = [
+  // Pickup at / Time / Name / Phone rows (payment recap and confirmation)
+  function pickupRows(details) {
+    const location = LOCATIONS[details.location];
+    return [
       ['Pickup at', esc(location.name) + '<br><span class="recap__sub">' + esc(location.address) + '</span>'],
-      ['Time', esc(pickup.timeText)],
-      ['Name', esc(order.customer.name)],
-      ['Phone', esc(order.customer.phone)],
-    ];
-    $('[data-recap]').innerHTML = rows.map(function (row) {
+      ['Time', esc(details.timeText)],
+      ['Name', esc(details.name)],
+      ['Phone', esc(details.phone)],
+    ].map(function (row) {
       return '<div><dt>' + row[0] + '</dt><dd>' + row[1] + '</dd></div>';
     }).join('');
   }
+
+  function renderRecap() {
+    if (!pickup || !cart.length) return;
+    $('[data-recap]').innerHTML = pickupRows(pickup);
+  }
+
+  $('[data-pay]').addEventListener('click', function () {
+    if (!pickup || !cart.length) return;
+    // With Clover connected, confirmation happens after a successful payment
+    if (CONFIG.paymentConnected) return;
+    placeOrder();
+  });
+
+
+  /* ---- 12. Confirmation ----------------------------------------------- */
+  // Snapshot the order, empty the cart and show the confirmation. The order
+  // number is a placeholder until the backend issues real ones.
+
+  function placeOrder() {
+    confirmed = {
+      number: String(Math.floor(1000 + Math.random() * 9000)),
+      order: buildOrder(),
+      lines: cart.slice(),
+      pickup: Object.assign({}, pickup),
+    };
+    cart = [];
+    saveCart();
+    renderConfirmation();
+    goTo('confirmed');
+  }
+
+  function renderConfirmation() {
+    const c = confirmed;
+    $('[data-confirm-number]').textContent = c.number;
+    $('[data-confirm-name]').textContent = c.pickup.name.split(/\s+/)[0];
+    $('[data-confirm-pickup]').innerHTML = pickupRows(c.pickup);
+    $('[data-confirm-lines]').innerHTML = c.lines.map(function (line) {
+      const mods = modsText(line);
+      return '<li class="confirm-line">' +
+        '<span class="confirm-line__qty">' + line.qty + '&times;</span>' +
+        '<div class="confirm-line__main">' +
+          '<span class="confirm-line__name">' + esc(lineName(line)) + '</span>' +
+          (mods ? '<p class="cart-line__mods">' + mods + '</p>' : '') +
+          (line.note ? '<p class="cart-line__note">&ldquo;' + esc(line.note) + '&rdquo;</p>' : '') +
+        '</div>' +
+        '<span class="confirm-line__price">' + fmt(unitPrice(line) * line.qty) + '</span>' +
+      '</li>';
+    }).join('');
+    $('[data-confirm-subtotal]').textContent = fmt(c.order.subtotal);
+    $('[data-confirm-tax-label]').textContent = CONFIG.taxLabel;
+    $('[data-confirm-tax]').textContent = fmt(c.order.tax);
+    $('[data-confirm-total]').textContent = fmt(c.order.total);
+    // SMS PLACEHOLDER: the backend will text this number; nothing is sent yet
+    $('[data-confirm-phone]').textContent = c.pickup.phone;
+    $('[data-confirm-test]').hidden = CONFIG.paymentConnected;
+  }
+
+  $('[data-new-order]').addEventListener('click', function () {
+    confirmed = null;
+    pickup = null;
+    pickupForm.reset();
+    refreshTimes();
+    goTo('menu');
+  });
 
   renderCart();
 })();
