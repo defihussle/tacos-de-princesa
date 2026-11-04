@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order Pickup | Tacos De Princesa</title>
+  <meta name="description" content="Order Tacos De Princesa for pickup at 150 King St W or One York Street, downtown Toronto.">
+  <!-- Private while online ordering is being built: nothing links here yet,
+       and this keeps it out of search results. Remove it at launch. -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#ED1566">
+
+  <!-- Favicon: the grey rose on transparent (favicon.ico has 16, 32 and 48px).
+       Bump ?v= when the icon changes so browsers drop their cached copy. -->
+  <link rel="icon" href="favicon.ico?v=3" sizes="any">
+  <link rel="icon" href="images/favicon-32.png?v=3" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="images/apple-touch-icon.png?v=3">
+
+  <!-- Marks that JS is available (used by reveal-on-scroll styles). Keep it first. -->
+  <script>document.documentElement.classList.add('js');</script>
+
+  <!-- Font: Josefin Sans, standing in for Brandon Grotesque (see --font-body in styles.css) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&display=swap">
+
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/order.css">
+  <script src="js/main.js" defer></script>
+  <!-- Menu data, cart, pickup times and the payment step: js/order.js -->
+  <script src="js/order.js" defer></script>
+</head>
+<body class="order-page" data-step="menu">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- =====================================================================
+       SITE HEADER (same links as index.html and catering.html). On this
+       page it's always the compact pink bar (site-header--solid, order.css).
+       ===================================================================== -->
+  <header class="site-header site-header--solid" data-header>
+    <div class="container site-header__inner">
+      <a class="brand" href="index.html">
+        <img src="images/logo.png" alt="Tacos De Princesa home" width="287" height="44">
+      </a>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu" data-nav-toggle>
+        <span class="nav-toggle__bar"></span>
+        <span class="nav-toggle__bar"></span>
+        <span class="nav-toggle__bar"></span>
+      </button>
+
+      <nav class="site-nav" id="site-nav" aria-label="Main" data-nav>
+        <ul class="site-nav__list">
+          <li><a class="site-nav__link" href="index.html">Home</a></li>
+          <li><a class="site-nav__link" href="index.html#menu">Menu</a></li>
+          <li><a class="site-nav__link" href="index.html#order" data-order-link>Order Now</a></li>
+          <li><a class="site-nav__link" href="catering.html">Catering</a></li>
+          <li><a class="site-nav__link" href="index.html#contact">Locations</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-backdrop" data-nav-backdrop></div>
+    </div>
+  </header>
+  <!-- /SITE HEADER -->
+
+  <main id="main" class="order">
+
+    <!-- ===== TITLE + PROGRESS (on the hero's wall texture) ============== -->
+    <div class="order-hero">
+      <div class="container">
+        <p class="eyebrow">King St W &middot; One York</p>
+        <h1>Order for pickup</h1>
+        <ol class="order-progress" aria-label="Order progress">
+          <li data-progress="menu" aria-current="step"><span>Menu</span></li>
+          <li data-progress="details"><span>Pickup</span></li>
+          <li data-progress="payment"><span>Payment</span></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="container order__layout">
+      <div class="order__main">
+
+        <!-- ===== STEP 1: MENU ============================================
+             Categories and dishes are rendered from the MENU data in
+             js/order.js. The chips scroll to each category. -->
+        <section class="order-step" data-step-panel="menu" aria-label="Menu">
+          <nav class="order-cats" aria-label="Menu categories" data-cat-nav></nav>
+          <div data-menu></div>
+          <noscript>
+            <p class="order-noscript">Online ordering needs JavaScript. You can also call us at <a href="tel:+16472982267">647-298-2267</a>.</p>
+          </noscript>
+        </section>
+
+        <!-- ===== STEP 2: PICKUP DETAILS ================================== -->
+        <section class="order-step" data-step-panel="details" aria-labelledby="details-title" hidden>
+          <button class="order-back" type="button" data-go="menu"><span aria-hidden="true">&larr;</span> Back to menu</button>
+          <h2 class="order-step__title" id="details-title" tabindex="-1">Pickup details</h2>
+
+          <form class="form form-panel" id="pickup-form" novalidate data-pickup-form>
+            <div class="form__row">
+              <div class="field">
+                <label for="pickup-name">Name</label>
+                <input id="pickup-name" name="name" type="text" autocomplete="name" required>
+              </div>
+              <div class="field">
+                <label for="pickup-phone">Phone</label>
+                <input id="pickup-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="647-555-0123" required>
+              </div>
+            </div>
+
+            <fieldset class="field pickup-locations">
+              <legend>Pickup location</legend>
+              <div class="choice-grid">
+                <label class="choice">
+                  <input type="radio" name="location" value="king-st-w" required>
+                  <span class="choice__title">King St W</span>
+                  <span class="choice__text">150 King St W, in the PATH near St. Andrew Station</span>
+                </label>
+                <label class="choice">
+                  <input type="radio" name="location" value="one-york" required>
+                  <span class="choice__title">One York</span>
+                  <span class="choice__text">One York Street, 2nd Floor</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="field">
+              <label for="pickup-time">Pickup time</label>
+              <select id="pickup-time" name="time" required data-pickup-time></select>
+              <p class="field__hint" data-pickup-hint></p>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">Continue to payment</button>
+          </form>
+        </section>
+
+        <!-- ===== STEP 3: PAYMENT ========================================= -->
+        <section class="order-step" data-step-panel="payment" aria-labelledby="payment-title" hidden>
+          <button class="order-back" type="button" data-go="details"><span aria-hidden="true">&larr;</span> Back to pickup details</button>
+          <h2 class="order-step__title" id="payment-title" tabindex="-1">Payment</h2>
+
+          <div class="form-panel pay">
+            <div class="pay__recap">
+              <dl class="recap" data-recap></dl>
+              <button class="text-link" type="button" data-go="details">Edit</button>
+            </div>
+
+            <!-- CLOVER PAYMENT: mount Clover's hosted card fields (iframes)
+                 into #clover-payment. Card numbers are typed into Clover's
+                 iframes and never touch this page: no card inputs here, and
+                 nothing about the card is stored. -->
+            <div class="pay-frame" id="clover-payment" data-clover-mount>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <p class="pay-frame__title">Secure card payment</p>
+              <p class="pay-frame__text">Clover&rsquo;s secure payment form will appear here.</p>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="button" disabled data-pay>Pay</button>
+            <p class="form-status" role="status">Payment isn&rsquo;t connected yet, so no order is placed and no card is charged.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== CART ======================================================
+           Desktop: always visible, sticky beside the menu.
+           Phones: a bottom sheet opened from the order bar (.cart-bar). -->
+      <aside class="cart" id="cart" aria-labelledby="cart-title" data-cart>
+        <div class="cart__head">
+          <h2 class="cart__title" id="cart-title">Your order</h2>
+          <button class="cart__close" type="button" aria-label="Close your order" data-cart-close>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="cart__body">
+          <div class="cart__empty" data-cart-empty>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <p>Your order is empty.<br>Add something delicious from the menu.</p>
+          </div>
+          <ul class="cart__lines" data-cart-lines></ul>
+        </div>
+
+        <div class="cart__foot">
+          <dl class="cart__totals">
+            <div><dt>Subtotal</dt><dd data-subtotal>$0.00</dd></div>
+            <div><dt data-tax-label>HST</dt><dd data-tax>$0.00</dd></div>
+            <div class="cart__total"><dt>Total</dt><dd data-total>$0.00</dd></div>
+          </dl>
+          <button class="btn btn--primary btn--block" type="button" disabled data-checkout>Checkout</button>
+          <button class="text-link cart__more" type="button" data-go="menu">Add more items</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Phones: order bar along the bottom; opens the cart sheet -->
+  <div class="cart-bar" data-cart-bar hidden>
+    <button class="cart-bar__btn" type="button" aria-controls="cart" aria-expanded="false" data-cart-open>
+      <span class="cart-bar__count" data-cart-count>0</span>
+      <span class="cart-bar__label" data-cart-bar-label>View order</span>
+      <span class="cart-bar__total" data-cart-bar-total>$0.00</span>
+    </button>
+  </div>
+  <div class="cart-backdrop" data-cart-backdrop></div>
+
+  <!-- "Added to your order" message -->
+  <p class="toast" role="status" aria-live="polite" data-toast></p>
+
+  <!-- ===== ITEM OPTIONS DIALOG (filled by js/order.js) ================== -->
+  <dialog class="item-dialog" aria-labelledby="item-title" data-item-dialog>
+    <form class="item-dialog__form" method="dialog" data-item-form>
+      <div class="item-dialog__head">
+        <div>
+          <h2 class="item-dialog__title" id="item-title" data-item-name></h2>
+          <p class="item-dialog__price" data-item-price></p>
+        </div>
+        <button class="item-dialog__close" type="button" aria-label="Close" data-item-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <div class="item-dialog__body">
+        <p class="item-dialog__desc" data-item-desc></p>
+        <div data-item-groups></div>
+        <div class="field">
+          <label for="item-note">Special instructions</label>
+          <textarea id="item-note" name="note" rows="2" maxlength="140" placeholder="Anything else the kitchen should know?" data-item-note></textarea>
+        </div>
+      </div>
+
+      <div class="item-dialog__foot">
+        <div class="qty" role="group" aria-label="Quantity">
+          <button class="qty__btn" type="button" aria-label="One less" data-qty-step="-1">&minus;</button>
+          <output class="qty__value" aria-live="polite" data-qty>1</output>
+          <button class="qty__btn" type="button" aria-label="One more" data-qty-step="1">+</button>
+        </div>
+        <button class="btn btn--primary item-dialog__add" type="submit">Add <span class="item-dialog__total" data-item-total></span></button>
+      </div>
+    </form>
+  </dialog>
+
+  <footer class="order-footer">
+    <div class="container">
+      <p>&copy; <span data-year>2026</span> Tacos De Princesa</p>
+      <p>Questions? <a href="tel:+16472982267">647-298-2267</a></p>
+    </div>
+  </footer>
+</body>
+</html>
