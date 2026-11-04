@@ -1,10 +1,27 @@
 name = "tacos-de-princesa"
 compatibility_date = "2024-01-01"
 
+# Handles /api/* (online ordering); everything else is a static file
+main = "worker/index.js"
+
 # The whole site is static files at the repo root (.assetsignore lists what
 # isn't published)
 [assets]
 directory = "."
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# Clover settings that aren't secret. For the live merchant: CLOVER_ENV =
+# "production" and that merchant's HST tax rate ID.
+#
+# Secrets (never in this file): set in the Cloudflare dashboard under
+# Workers > tacos-de-princesa > Settings > Variables and Secrets, type Secret:
+#   CLOVER_PRIVATE_TOKEN   the merchant's private Ecommerce API token
+#   CLOVER_MERCHANT_ID     the merchant ID (sandbox: 2N9FRNJANSV31)
+# Optional: CLOVER_ORDER_TYPE_ID, an order type such as "Online Pickup".
+[vars]
+CLOVER_ENV = "sandbox"
+CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A" # sandbox "HST" 13%
 
 # Needed by `npx wrangler preview` (the deploy command for preview builds)
 [previews]

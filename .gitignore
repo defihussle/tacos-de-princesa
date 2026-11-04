@@ -24,3 +24,6 @@ npm-debug.log*
 
 # Local browser-testing artifacts
 .playwright-mcp/
+
+# Wrangler local secrets
+.dev.vars

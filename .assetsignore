@@ -5,3 +5,5 @@ wrangler.toml
 .playwright-mcp
 node_modules
 .wrangler
+worker
+.dev.vars
