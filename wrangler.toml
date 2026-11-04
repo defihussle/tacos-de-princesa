@@ -1,0 +1,6 @@
+# Cloudflare config, added on the online-ordering branch for preview builds.
+# name must match the project name in the Cloudflare dashboard.
+name = "tacos-de-princesa"
+compatibility_date = "2024-01-01"
+
+[previews]
