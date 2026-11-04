@@ -28,6 +28,9 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/order.css">
   <script src="js/main.js" defer></script>
+  <!-- Clover hosted card fields: SANDBOX (production is
+       https://checkout.clover.com/sdk.js) -->
+  <script src="https://checkout.sandbox.dev.clover.com/sdk.js" defer></script>
   <!-- Menu data, cart, pickup times and the payment step: js/order.js -->
   <script src="js/order.js" defer></script>
 </head>
@@ -148,20 +151,51 @@
               <button class="text-link" type="button" data-go="details">Edit</button>
             </div>
 
-            <!-- CLOVER PAYMENT: mount Clover's hosted card fields (iframes)
-                 into #clover-payment. Card numbers are typed into Clover's
-                 iframes and never touch this page: no card inputs here, and
-                 nothing about the card is stored. -->
-            <div class="pay-frame" id="clover-payment" data-clover-mount>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <p class="pay-frame__title">Secure card payment</p>
-              <p class="pay-frame__text">Clover&rsquo;s secure payment form will appear here.</p>
+            <!-- CLOVER PAYMENT: js/order.js mounts Clover's hosted card fields
+                 into the four .pay-field__box divs. Each is an iframe served
+                 by Clover, so card details never touch this page and nothing
+                 about the card is stored. -->
+            <form class="pay-card" id="clover-payment" data-pay-form novalidate>
+              <p class="pay-card__title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Secure card payment
+              </p>
+              <div class="field pay-field pay-field--number">
+                <span class="pay-field__label" id="card-number-label">Card number</span>
+                <div class="pay-field__box" id="card-number" role="group" aria-labelledby="card-number-label"></div>
+                <p class="field__error" id="card-number-errors" role="alert"></p>
+              </div>
+              <div class="field pay-field">
+                <span class="pay-field__label" id="card-date-label">Expiry</span>
+                <div class="pay-field__box" id="card-date" role="group" aria-labelledby="card-date-label"></div>
+                <p class="field__error" id="card-date-errors" role="alert"></p>
+              </div>
+              <div class="field pay-field">
+                <span class="pay-field__label" id="card-cvv-label">CVV</span>
+                <div class="pay-field__box" id="card-cvv" role="group" aria-labelledby="card-cvv-label"></div>
+                <p class="field__error" id="card-cvv-errors" role="alert"></p>
+              </div>
+              <div class="field pay-field">
+                <span class="pay-field__label" id="card-postal-label">Postal code</span>
+                <div class="pay-field__box" id="card-postal" role="group" aria-labelledby="card-postal-label"></div>
+                <p class="field__error" id="card-postal-errors" role="alert"></p>
+              </div>
+              <button class="btn btn--primary btn--block pay-card__submit" type="submit" data-pay>Pay</button>
+            </form>
+
+            <p class="form-status pay__status" role="status" data-pay-status></p>
+
+            <!-- PHASE 1 TEST OUTPUT: the clv_ token Clover returns. No server
+                 is called and nothing is charged. -->
+            <div class="pay-token" data-pay-token hidden>
+              <p class="pay-token__title">Card tokenized (sandbox test)</p>
+              <code class="pay-token__value" data-pay-token-value></code>
+              <p class="pay-token__text">Nothing was charged and nothing was sent to a server.</p>
             </div>
 
-            <!-- Until Clover is connected (CONFIG.paymentConnected in js/order.js)
-                 this places a test order and goes to the confirmation. -->
-            <button class="btn btn--primary btn--block" type="button" data-pay>Pay</button>
-            <p class="form-status" role="status">Payment isn&rsquo;t connected yet, so this places a test order: no card is charged and nothing goes to the kitchen.</p>
+            <!-- Until the backend is connected, this still reaches the
+                 confirmation without paying. -->
+            <button class="text-link pay__skip" type="button" data-test-order>Skip payment and place a test order</button>
           </div>
         </section>
 

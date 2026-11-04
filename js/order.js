@@ -35,9 +35,15 @@
     lastSlotBeforeClose: 15, // last pickup slot = closing time minus this
     daysAhead: 7,            // when closed, look this far ahead for the next open day
     storageKey: 'tdp-order-cart-v1',
-    // Until Clover is connected, the Pay button places a test order: it goes
-    // straight to the confirmation, charges nothing and sends nothing.
+    // Until the backend is connected, Pay only tokenizes the card (Phase 1)
+    // and the confirmation is reached with "Skip payment" (a test order).
     paymentConnected: false,
+    // Clover hosted card fields: SANDBOX merchant. The public key can only
+    // tokenize cards; the private token never goes in this file.
+    clover: {
+      publicKey: 'b1115fedbe960f0ef8b1fa3b443a3b96',
+      merchantId: '2N9FRNJANSV31',
+    },
   };
 
   // Hours match the footer. days: 0 = Sunday ... 6 = Saturday.
@@ -505,7 +511,7 @@
     $('[data-tax]').textContent = fmt(t.tax);
     $('[data-total]').textContent = fmt(t.total);
     checkoutBtn.disabled = !cart.length;
-    $('[data-pay]').textContent = (CONFIG.paymentConnected ? 'Pay ' : 'Place test order · ') + fmt(t.total);
+    $('[data-pay]').textContent = 'Pay ' + fmt(t.total);
 
     // Phone order bar: shown once there's something in the cart
     $('[data-cart-count]').textContent = t.count;
@@ -619,7 +625,10 @@
     });
 
     if (step === 'details') refreshTimes();
-    if (step === 'payment') renderRecap();
+    if (step === 'payment') {
+      renderRecap();
+      startClover();
+    }
     setSheet(false);
     renderCart();
 
@@ -812,9 +821,10 @@
 
 
   /* ---- 11. Payment step ----------------------------------------------- */
-  // buildOrder() is what the backend will receive (amounts in cents). The
-  // flow will be: POST it, get a Clover payment session back, mount Clover's
-  // card iframes in #clover-payment, and confirm. Nothing is sent yet.
+  // buildOrder() is what the backend will receive (amounts in cents). Card
+  // details are typed into Clover's iframes; Clover turns them into a
+  // single-use clv_ token, which is all this page ever sees. Phase 1 stops
+  // there: the token is shown, nothing is sent to a server.
 
   function buildOrder() {
     const t = totals();
@@ -856,10 +866,126 @@
     $('[data-recap]').innerHTML = pickupRows(pickup);
   }
 
-  $('[data-pay]').addEventListener('click', function () {
+  const payForm = $('[data-pay-form]');
+  const payButton = $('[data-pay]');
+  const payStatus = $('[data-pay-status]');
+  const tokenBox = $('[data-pay-token]');
+
+  // Clover element type -> mount point (its error line is '#<id>-errors')
+  const CARD_FIELDS = [
+    { type: 'CARD_NUMBER', id: 'card-number' },
+    { type: 'CARD_DATE', id: 'card-date' },
+    { type: 'CARD_CVV', id: 'card-cvv' },
+    { type: 'CARD_POSTAL_CODE', id: 'card-postal' },
+  ];
+
+  // CSS for inside the iframes (selector -> properties). The input fills
+  // the box so the whole field is clickable. Brandon Grotesque isn't
+  // available in there, so a system font at the other inputs' size.
+  const CARD_STYLES = {
+    body: {
+      margin: '0',
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+      fontSize: '16px',
+    },
+    input: {
+      boxSizing: 'border-box',
+      width: '100%',
+      height: '49px',
+      padding: '0 16px',
+      backgroundColor: 'transparent',
+      fontSize: '16px',
+      color: '#1f1f1f',
+    },
+    'input::placeholder': {
+      color: '#8a8a8a',
+    },
+    // Card brand logo (Visa etc.), centred in the box on the right
+    'img.brand': {
+      top: '10px',
+      right: '12px',
+      height: '29px',
+      width: 'auto',
+    },
+  };
+
+  let clover = null;
+
+  // Mount the card fields the first time the payment step opens
+  function startClover() {
+    if (clover) return;
+    if (typeof window.Clover !== 'function') {
+      payStatus.textContent = 'Card payment couldn’t load. Check your connection and refresh the page.';
+      payButton.disabled = true;
+      return;
+    }
+    clover = new window.Clover(CONFIG.clover.publicKey, { merchantId: CONFIG.clover.merchantId });
+    const elements = clover.elements();
+    CARD_FIELDS.forEach(function (field) {
+      const element = elements.create(field.type, CARD_STYLES);
+      element.mount('#' + field.id);
+      // Events report every field's state; show only the errors for fields
+      // the customer has already left
+      element.addEventListener('change', showFieldErrors);
+      element.addEventListener('blur', showFieldErrors);
+    });
+  }
+
+  // state: { CARD_NUMBER: { error: '...', touched: true }, ... }
+  function showFieldErrors(state) {
+    CARD_FIELDS.forEach(function (field) {
+      const info = state && state[field.type];
+      if (!info) return;
+      setFieldError(field, info.touched && info.error ? info.error : '');
+    });
+  }
+
+  function setFieldError(field, message) {
+    $('#' + field.id + '-errors').textContent = message;
+    $('#' + field.id).classList.toggle('is-invalid', !!message);
+  }
+
+  payForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (!pickup || !cart.length || !clover || payButton.disabled) return;
+
+    payButton.disabled = true;
+    payStatus.textContent = 'Checking card…';
+    tokenBox.hidden = true;
+
+    clover.createToken().then(function (result) {
+      if (result.errors && Object.keys(result.errors).length) {
+        // Field errors go under their field; anything else in the status line
+        const other = [];
+        Object.keys(result.errors).forEach(function (key) {
+          const error = result.errors[key];
+          const message = typeof error === 'string' ? error : (error && error.error) || 'Check this field.';
+          const field = CARD_FIELDS.find(function (f) { return f.type === key; });
+          if (field) setFieldError(field, message);
+          else other.push(message);
+        });
+        payStatus.textContent = other.length ? other.join(' ') : 'Please check your card details.';
+        return;
+      }
+      if (!result.token) throw new Error('No token returned');
+
+      CARD_FIELDS.forEach(function (field) { setFieldError(field, ''); });
+      payStatus.textContent = '';
+      // PHASE 1: show the token. Phase 3 POSTs it to the backend instead.
+      console.log('Clover token:', result.token);
+      $('[data-pay-token-value]').textContent = result.token;
+      tokenBox.hidden = false;
+    }).catch(function (error) {
+      console.error('Clover tokenization failed:', error);
+      payStatus.textContent = 'We couldn’t reach the payment service. Please try again.';
+    }).then(function () {
+      payButton.disabled = false;
+    });
+  });
+
+  // Test order without paying: straight to the confirmation, nothing sent
+  $('[data-test-order]').addEventListener('click', function () {
     if (!pickup || !cart.length) return;
-    // With Clover connected, confirmation happens after a successful payment
-    if (CONFIG.paymentConnected) return;
     placeOrder();
   });
 
