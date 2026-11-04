@@ -1,5 +1,10 @@
 name = "tacos-de-princesa"
 compatibility_date = "2024-01-01"
-pages_build_output_dir = "."
 
+# The whole site is static files at the repo root (.assetsignore lists what
+# isn't published)
+[assets]
+directory = "."
+
+# Needed by `npx wrangler preview` (the deploy command for preview builds)
 [previews]

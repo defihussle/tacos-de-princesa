@@ -1,0 +1,7 @@
+# Repo files that aren't part of the website (wrangler.toml [assets] uploads the repo root)
+.git
+.gitignore
+wrangler.toml
+.playwright-mcp
+node_modules
+.wrangler
