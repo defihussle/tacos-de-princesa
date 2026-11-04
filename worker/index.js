@@ -11,6 +11,11 @@
      -> 200 { success: true, orderId, total }
      -> 4xx/5xx { success: false, error }
 
+   GET /api/health
+     Which settings this deployment can see (yes/no only, never values) and
+     the commit it was built from (BUILD_COMMIT, set by
+     scripts/deploy-preview.sh), to check a preview's setup.
+
    Settings: the secret CLOVER_PRIVATE_TOKEN (the merchant's private
    Ecommerce API token; see wrangler.toml for where it's set), and in
    wrangler.toml [vars]: CLOVER_ENV, CLOVER_MERCHANT_ID, CLOVER_TAX_RATE_ID,
@@ -39,6 +44,7 @@ export default {
       if (request.method !== 'POST') return json({ success: false, error: 'Use POST.' }, 405, { Allow: 'POST' });
       return createOrder(request, env);
     }
+    if (url.pathname === '/api/health') return json(health(env));
     if (url.pathname.startsWith('/api/')) return json({ success: false, error: 'Not found.' }, 404);
     return env.ASSETS.fetch(request);
   },
@@ -51,6 +57,24 @@ function json(body, status, headers) {
   });
 }
 
+const REQUIRED = ['CLOVER_PRIVATE_TOKEN', 'CLOVER_MERCHANT_ID', 'CLOVER_TAX_RATE_ID'];
+
+function missingSettings(env) {
+  return REQUIRED.filter(function (key) { return !env[key]; });
+}
+
+function health(env) {
+  const settings = {};
+  REQUIRED.forEach(function (key) { settings[key] = !!env[key]; });
+  return {
+    ready: !missingSettings(env).length,
+    commit: env.BUILD_COMMIT || 'unknown',
+    clover: env.CLOVER_ENV === 'production' ? 'production' : 'sandbox',
+    currency: env.CLOVER_CURRENCY || 'cad',
+    settings: settings,
+  };
+}
+
 // A problem with what the browser sent: the message is shown to the customer
 class BadRequest extends Error {}
 
@@ -58,8 +82,9 @@ class BadRequest extends Error {}
 /* ---- Create + pay ----------------------------------------------------- */
 
 async function createOrder(request, env) {
-  if (!env.CLOVER_PRIVATE_TOKEN || !env.CLOVER_MERCHANT_ID || !env.CLOVER_TAX_RATE_ID) {
-    console.error('create-order: missing CLOVER_PRIVATE_TOKEN, CLOVER_MERCHANT_ID or CLOVER_TAX_RATE_ID');
+  const missing = missingSettings(env);
+  if (missing.length) {
+    console.error('create-order: missing settings: ' + missing.join(', '));
     return json({ success: false, error: 'Online payment isn’t set up yet. Please order in store.' }, 503);
   }
   const urls = CLOVER_URLS[env.CLOVER_ENV === 'production' ? 'production' : 'sandbox'];

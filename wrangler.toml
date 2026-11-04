@@ -27,5 +27,12 @@ CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
 CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A" # sandbox "HST" 13%
 CLOVER_CURRENCY = "usd"
 
-# Needed by `npx wrangler preview` (the deploy command for preview builds)
-[previews]
+# Previews (`npx wrangler preview`, the deploy command for preview builds)
+# don't inherit [vars]: they need their own copy here. Preview secrets come
+# from Settings > Previews Base (copied into each NEW Preview when it's
+# created) or `wrangler preview secret put`.
+[previews.vars]
+CLOVER_ENV = "sandbox"
+CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
+CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
+CLOVER_CURRENCY = "usd"
