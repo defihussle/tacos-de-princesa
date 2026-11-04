@@ -11,17 +11,21 @@ directory = "."
 binding = "ASSETS"
 run_worker_first = ["/api/*"]
 
-# Clover settings that aren't secret. For the live merchant: CLOVER_ENV =
-# "production" and that merchant's HST tax rate ID.
+# Clover settings that aren't secret (the merchant ID is also in js/order.js).
+# SANDBOX values. For the live merchant: CLOVER_ENV = "production", its
+# merchant ID and HST tax rate ID, and CLOVER_CURRENCY = "cad" (the sandbox
+# test merchant only accepts USD).
 #
-# Secrets (never in this file): set in the Cloudflare dashboard under
-# Workers > tacos-de-princesa > Settings > Variables and Secrets, type Secret:
-#   CLOVER_PRIVATE_TOKEN   the merchant's private Ecommerce API token
-#   CLOVER_MERCHANT_ID     the merchant ID (sandbox: 2N9FRNJANSV31)
+# The one secret, never in this file: CLOVER_PRIVATE_TOKEN, the merchant's
+# private Ecommerce API token. Previews and the live Worker keep secrets
+# separately (preview: Preview base config / `wrangler preview secret`;
+# live: Settings > Variables and Secrets).
 # Optional: CLOVER_ORDER_TYPE_ID, an order type such as "Online Pickup".
 [vars]
 CLOVER_ENV = "sandbox"
+CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
 CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A" # sandbox "HST" 13%
+CLOVER_CURRENCY = "usd"
 
 # Needed by `npx wrangler preview` (the deploy command for preview builds)
 [previews]

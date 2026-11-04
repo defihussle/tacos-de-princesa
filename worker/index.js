@@ -11,11 +11,9 @@
      -> 200 { success: true, orderId, total }
      -> 4xx/5xx { success: false, error }
 
-   Settings (Cloudflare dashboard > Workers > tacos-de-princesa > Settings >
-   Variables and Secrets, both as type Secret):
-     CLOVER_PRIVATE_TOKEN  merchant's private Ecommerce API token
-     CLOVER_MERCHANT_ID    merchant ID
-   And in wrangler.toml [vars]: CLOVER_ENV, CLOVER_TAX_RATE_ID. Optional:
+   Settings: the secret CLOVER_PRIVATE_TOKEN (the merchant's private
+   Ecommerce API token; see wrangler.toml for where it's set), and in
+   wrangler.toml [vars]: CLOVER_ENV, CLOVER_MERCHANT_ID, CLOVER_TAX_RATE_ID,
    CLOVER_CURRENCY (default 'cad'; must match the merchant's currency).
    ========================================================================== */
 
