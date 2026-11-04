@@ -184,18 +184,6 @@
             </form>
 
             <p class="form-status pay__status" role="status" data-pay-status></p>
-
-            <!-- PHASE 1 TEST OUTPUT: the clv_ token Clover returns. No server
-                 is called and nothing is charged. -->
-            <div class="pay-token" data-pay-token hidden>
-              <p class="pay-token__title">Card tokenized (sandbox test)</p>
-              <code class="pay-token__value" data-pay-token-value></code>
-              <p class="pay-token__text">Nothing was charged and nothing was sent to a server.</p>
-            </div>
-
-            <!-- Until the backend is connected, this still reaches the
-                 confirmation without paying. -->
-            <button class="text-link pay__skip" type="button" data-test-order>Skip payment and place a test order</button>
           </div>
         </section>
 
@@ -210,8 +198,6 @@
               <h2 class="order-step__title" id="confirmed-title" tabindex="-1">Order confirmed</h2>
               <p class="lead">Thanks, <span data-confirm-name></span>! We&rsquo;ll have it ready for pickup.</p>
             </div>
-
-            <p class="confirm__test" data-confirm-test>Test order: payment isn&rsquo;t connected yet, so nothing was charged and the kitchen hasn&rsquo;t received it.</p>
 
             <dl class="recap" data-confirm-pickup></dl>
 

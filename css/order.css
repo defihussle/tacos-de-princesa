@@ -1247,41 +1247,30 @@ html:has(.item-dialog[open]) {
   margin-top: 0.5rem;
 }
 
-/* Phase 1 test output: the clv_ token */
-.pay-token {
+/* Clover's "Secure Payments Powered by Clover" footer (moved here from the
+   end of <body> by js/order.js; its inline styles need !important) */
+.pay .clover-footer {
   display: grid;
-  gap: 0.4rem;
-  padding: 1rem 1.25rem;
-  border: 2px dashed rgba(237, 21, 102, 0.35);
-  border-radius: var(--radius);
-  background: rgba(237, 21, 102, 0.03);
+  justify-items: center;
+  gap: 0.3rem;
+  padding: 0 !important;
+  background: none !important;
 }
 
-.pay-token__title {
-  margin: 0;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.pay .clover-footer,
+.pay .clover-footer * {
+  font-family: var(--font-body) !important;
+  font-size: 0.8rem !important;
+  color: var(--muted) !important;
 }
 
-.pay-token__value {
-  font-size: 0.85rem;
-  word-break: break-all;
+.pay .clover-footer img {
+  display: inline-block;
+  vertical-align: middle;
 }
 
-.pay-token__text {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.pay__skip {
-  justify-self: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 0.9rem;
-  cursor: pointer;
+.pay .clover-privacy-link {
+  text-decoration: underline;
 }
 
 .pay .form-status {
@@ -1407,15 +1396,6 @@ html:has(.item-dialog[open]) {
 
 .confirm__head .order-step__title {
   margin-bottom: 0.5rem;
-}
-
-.confirm__test {
-  margin: 0;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-sm);
-  background: rgba(246, 179, 60, 0.16); /* --accent, light */
-  font-size: 0.9rem;
-  text-align: center;
 }
 
 .confirm .recap {

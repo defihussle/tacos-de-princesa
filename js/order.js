@@ -35,9 +35,6 @@
     lastSlotBeforeClose: 15, // last pickup slot = closing time minus this
     daysAhead: 7,            // when closed, look this far ahead for the next open day
     storageKey: 'tdp-order-cart-v1',
-    // Until the backend is connected, Pay only tokenizes the card (Phase 1)
-    // and the confirmation is reached with "Skip payment" (a test order).
-    paymentConnected: false,
     // Clover hosted card fields: SANDBOX merchant. The public key can only
     // tokenize cards; the private token never goes in this file.
     clover: {
@@ -821,10 +818,11 @@
 
 
   /* ---- 11. Payment step ----------------------------------------------- */
-  // buildOrder() is what the backend will receive (amounts in cents). Card
-  // details are typed into Clover's iframes; Clover turns them into a
-  // single-use clv_ token, which is all this page ever sees. Phase 1 stops
-  // there: the token is shown, nothing is sent to a server.
+  // Card details are typed into Clover's iframes; Clover turns them into a
+  // single-use clv_ token, which is all this page ever sees. The token, cart
+  // and pickup details go to the Worker (worker/index.js), which prices the
+  // order itself, creates it in Clover and charges the card.
+  // buildOrder() is the order as this page priced it, for the confirmation.
 
   function buildOrder() {
     const t = totals();
@@ -869,7 +867,6 @@
   const payForm = $('[data-pay-form]');
   const payButton = $('[data-pay]');
   const payStatus = $('[data-pay-status]');
-  const tokenBox = $('[data-pay-token]');
 
   // Clover element type -> mount point (its error line is '#<id>-errors')
   const CARD_FIELDS = [
@@ -929,6 +926,20 @@
       element.addEventListener('change', showFieldErrors);
       element.addEventListener('blur', showFieldErrors);
     });
+
+    // Clover's script adds a "Secure Payments Powered by Clover" footer to
+    // the end of <body>; move it under the Pay button
+    if (!placeCloverFooter()) {
+      new MutationObserver(function (changes, observer) {
+        if (placeCloverFooter()) observer.disconnect();
+      }).observe(document.body, { childList: true });
+    }
+  }
+
+  function placeCloverFooter() {
+    const footer = $('body > .clover-footer');
+    if (footer) payStatus.after(footer);
+    return !!footer;
   }
 
   // state: { CARD_NUMBER: { error: '...', touched: true }, ... }
@@ -950,8 +961,10 @@
     if (!pickup || !cart.length || !clover || payButton.disabled) return;
 
     payButton.disabled = true;
-    payStatus.textContent = 'Checking card…';
-    tokenBox.hidden = true;
+    payStatus.textContent = 'Processing payment…';
+    // What's being paid for, in case the cart changes while we wait
+    const lines = cart.map(function (line) { return Object.assign({}, line); });
+    const details = Object.assign({}, pickup);
 
     clover.createToken().then(function (result) {
       if (result.errors && Object.keys(result.errors).length) {
@@ -967,39 +980,68 @@
         payStatus.textContent = other.length ? other.join(' ') : 'Please check your card details.';
         return;
       }
-      if (!result.token) throw new Error('No token returned');
-
+      if (!result.token) {
+        payStatus.textContent = 'We couldn’t reach the payment service. Please try again.';
+        return;
+      }
       CARD_FIELDS.forEach(function (field) { setFieldError(field, ''); });
-      payStatus.textContent = '';
-      // PHASE 1: show the token. Phase 3 POSTs it to the backend instead.
-      console.log('Clover token:', result.token);
-      $('[data-pay-token-value]').textContent = result.token;
-      tokenBox.hidden = false;
-    }).catch(function (error) {
-      console.error('Clover tokenization failed:', error);
+      return sendOrder(result.token, lines, details);
+    }, function () {
       payStatus.textContent = 'We couldn’t reach the payment service. Please try again.';
     }).then(function () {
       payButton.disabled = false;
     });
   });
 
-  // Test order without paying: straight to the confirmation, nothing sent
-  $('[data-test-order]').addEventListener('click', function () {
-    if (!pickup || !cart.length) return;
-    placeOrder();
-  });
+  // POST the order to the Worker. Prices and totals aren't sent: the Worker
+  // works them out from its own copy of the menu.
+  function sendOrder(source, lines, details) {
+    return fetch('/api/create-order', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        source: source,
+        cart: lines.map(function (line) {
+          return { item: line.item, qty: line.qty, mods: line.mods, note: line.note };
+        }),
+        pickup: {
+          name: details.name,
+          phone: details.phone,
+          location: details.location,
+          asap: details.asap,
+          time: details.time,
+        },
+      }),
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; });
+    }).then(function (result) {
+      if (result.success) {
+        payStatus.textContent = '';
+        placeOrder(result, lines, details);
+      } else {
+        payStatus.textContent = result.error || 'Payment didn’t go through and no charge was made. Please try again.';
+      }
+    }, function () {
+      // No answer: the order may or may not have gone through
+      payStatus.textContent = 'We lost the connection before your order was confirmed. Please call us at 647-298-2267 before trying again, so you aren’t charged twice.';
+    });
+  }
 
 
   /* ---- 12. Confirmation ----------------------------------------------- */
-  // Snapshot the order, empty the cart and show the confirmation. The order
-  // number is a placeholder until the backend issues real ones.
+  // After a successful payment: keep what was ordered, empty the cart and
+  // show the confirmation. The order number is Clover's order ID; the total
+  // is what the Worker charged.
 
-  function placeOrder() {
+  function placeOrder(result, lines, details) {
+    cart = lines;
+    const order = buildOrder();
+    order.total = result.total;
     confirmed = {
-      number: String(Math.floor(1000 + Math.random() * 9000)),
-      order: buildOrder(),
-      lines: cart.slice(),
-      pickup: Object.assign({}, pickup),
+      number: result.orderId,
+      order: order,
+      lines: lines,
+      pickup: details,
     };
     cart = [];
     saveCart();
@@ -1030,7 +1072,6 @@
     $('[data-confirm-total]').textContent = fmt(c.order.total);
     // SMS PLACEHOLDER: the backend will text this number; nothing is sent yet
     $('[data-confirm-phone]').textContent = c.pickup.phone;
-    $('[data-confirm-test]').hidden = CONFIG.paymentConnected;
   }
 
   $('[data-new-order]').addEventListener('click', function () {
