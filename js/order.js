@@ -79,7 +79,6 @@
     extraBirria: { title: 'Extras', type: 'many', options: [opt('Extra birria taco', 500)] },
     tacoExtras: { title: 'Extras', type: 'many', options: [opt('Extra taco', 400), opt('Add cheese', 100)] },
     filling: { title: 'Choose your taco', type: 'one', options: TACO_FILLINGS.map(function (n) { return opt(n); }) },
-    style: { title: 'Bowl or wrap', type: 'one', options: [opt('Bowl'), opt('Wrap')] },
     guac: { title: 'Extras', type: 'many', options: [opt('Add guacamole', 300)] },
     dressing: { title: 'Dressing', type: 'one', options: [opt('House vinaigrette'), opt('Cilantro lime'), opt('Chipotle ranch')] },
     protein: { title: 'Add a protein', type: 'one', options: [opt('No protein', 0, true), opt('Pollo', 400), opt('Carne Asada', 500), opt('Pescado', 500), opt('Camarón', 600), opt('Veggie Chorizo', 500), opt('Surf + Turf', 800)] },
@@ -89,6 +88,20 @@
   ['1', '2', '3'].forEach(function (n) {
     GROUPS['mix' + n] = { title: 'Taco ' + n, type: 'one', options: ['Birria'].concat(TACO_FILLINGS).map(function (f) { return opt(f); }) };
   });
+
+  // Burritos and Bowls: same fillings and prices (a fresh copy each, since
+  // ITEMS below fills in each item)
+  function burritoFillings() {
+    return [
+      { id: 'pollo', name: 'Pollo', desc: 'Chicken.', price: 1500 },
+      { id: 'carne-asada', name: 'Carne Asada', desc: 'Steak.', price: 1600 },
+      { id: 'barbacoa', name: 'Barbacoa', desc: 'Pulled beef.', price: 1700 },
+      { id: 'surf-turf', name: 'Surf + Turf', desc: 'Shrimp and steak.', price: 1800 },
+      { id: 'pescado', name: 'Pescado', desc: 'Fish.', price: 1600 },
+      { id: 'camaron', name: 'Camarón', desc: 'Shrimp.', price: 1700 },
+      { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein.', price: 1600, veg: true },
+    ];
+  }
 
   // Prices match the menu on index.html (One York TV menu, Nov 2026).
   // suffix names the dish in the cart ("Pollo" + "Burrito"); nameFrom adds
@@ -117,16 +130,12 @@
       ],
     },
     {
-      id: 'burritos', name: 'Burritos', note: 'Bowl or wrap', suffix: 'Burrito', groups: ['style', 'guac', 'prep'],
-      items: [
-        { id: 'pollo', name: 'Pollo', desc: 'Chicken.', price: 1500 },
-        { id: 'carne-asada', name: 'Carne Asada', desc: 'Steak.', price: 1600 },
-        { id: 'barbacoa', name: 'Barbacoa', desc: 'Pulled beef.', price: 1700 },
-        { id: 'surf-turf', name: 'Surf + Turf', desc: 'Shrimp and steak.', price: 1800 },
-        { id: 'pescado', name: 'Pescado', desc: 'Fish.', price: 1600 },
-        { id: 'camaron', name: 'Camarón', desc: 'Shrimp.', price: 1700 },
-        { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein.', price: 1600, veg: true },
-      ],
+      id: 'burritos', name: 'Burritos', note: 'Wrapped, with all the toppings', suffix: 'Burrito', groups: ['guac', 'prep'],
+      items: burritoFillings(),
+    },
+    {
+      id: 'bowls', name: 'Bowls', note: 'Everything in a burrito, in a bowl', suffix: 'Bowl', groups: ['guac', 'prep'],
+      items: burritoFillings(),
     },
     {
       id: 'ensaladas', name: 'Ensaladas', note: 'With your choice of dressing', suffix: 'Ensalada', groups: ['dressing', 'protein', 'prep'],
@@ -228,9 +237,24 @@
     return JSON.stringify([line.item, line.mods, line.note]);
   }
 
+  // Same checks as the Worker: a known dish, and options it actually has
   function validLine(line) {
     return !!line && !!ITEMS[line.item] && Number.isInteger(line.qty) && line.qty > 0 && line.qty <= MAX_QTY &&
-      Array.isArray(line.mods) && line.mods.every(function (m) { return m && findOption(m.g, m.label); });
+      Array.isArray(line.mods) && line.mods.every(function (m) {
+        return m && ITEMS[line.item].groups.indexOf(m.g) !== -1 && findOption(m.g, m.label);
+      });
+  }
+
+  // Carts saved before Bowls had their own section: a burrito with
+  // "Bowl or wrap" becomes a bowl or a plain burrito
+  function upgradeLine(line) {
+    const style = line && /^burritos\//.test(line.item) && Array.isArray(line.mods) &&
+      line.mods.filter(function (m) { return m && m.g === 'style'; })[0];
+    if (!style) return line;
+    return Object.assign({}, line, {
+      item: style.label === 'Bowl' ? line.item.replace(/^burritos\//, 'bowls/') : line.item,
+      mods: line.mods.filter(function (m) { return m !== style; }),
+    });
   }
 
   function loadCart() {
@@ -239,7 +263,7 @@
       if (Array.isArray(saved)) saved = { savedAt: Date.now(), lines: saved };
       if (!saved || !Array.isArray(saved.lines)) return [];
       if (Date.now() - saved.savedAt > CONFIG.cartMaxAgeHours * 3600000) return [];
-      return saved.lines.filter(validLine).map(function (line) {
+      return saved.lines.map(upgradeLine).filter(validLine).map(function (line) {
         return { id: 'l' + nextId++, item: line.item, qty: line.qty, mods: line.mods, note: typeof line.note === 'string' ? line.note : '' };
       });
     } catch (e) {

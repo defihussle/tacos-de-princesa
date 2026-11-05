@@ -18,7 +18,6 @@ export const GROUPS = {
   extraBirria: { type: 'many', options: [opt('Extra birria taco', 500)] },
   tacoExtras: { type: 'many', options: [opt('Extra taco', 400), opt('Add cheese', 100)] },
   filling: { type: 'one', options: TACO_FILLINGS.map(function (n) { return opt(n); }) },
-  style: { type: 'one', options: [opt('Bowl'), opt('Wrap')] },
   guac: { type: 'many', options: [opt('Add guacamole', 300)] },
   dressing: { type: 'one', options: [opt('House vinaigrette'), opt('Cilantro lime'), opt('Chipotle ranch')] },
   protein: { type: 'one', options: [opt('No protein'), opt('Pollo', 400), opt('Carne Asada', 500), opt('Pescado', 500), opt('Camarón', 600), opt('Veggie Chorizo', 500), opt('Surf + Turf', 800)] },
@@ -28,6 +27,19 @@ export const GROUPS = {
 ['1', '2', '3'].forEach(function (n) {
   GROUPS['mix' + n] = { type: 'one', options: ['Birria'].concat(TACO_FILLINGS).map(function (f) { return opt(f); }) };
 });
+
+// Burritos and Bowls: same fillings and prices
+function burritoFillings() {
+  return [
+    { id: 'pollo', name: 'Pollo', price: 1500 },
+    { id: 'carne-asada', name: 'Carne Asada', price: 1600 },
+    { id: 'barbacoa', name: 'Barbacoa', price: 1700 },
+    { id: 'surf-turf', name: 'Surf + Turf', price: 1800 },
+    { id: 'pescado', name: 'Pescado', price: 1600 },
+    { id: 'camaron', name: 'Camarón', price: 1700 },
+    { id: 'veggie-chorizo', name: 'Veggie Chorizo', price: 1600 },
+  ];
+}
 
 // Same shape as js/order.js (descriptions left out)
 const MENU = [
@@ -53,16 +65,12 @@ const MENU = [
     ],
   },
   {
-    id: 'burritos', suffix: 'Burrito', groups: ['style', 'guac', 'prep'],
-    items: [
-      { id: 'pollo', name: 'Pollo', price: 1500 },
-      { id: 'carne-asada', name: 'Carne Asada', price: 1600 },
-      { id: 'barbacoa', name: 'Barbacoa', price: 1700 },
-      { id: 'surf-turf', name: 'Surf + Turf', price: 1800 },
-      { id: 'pescado', name: 'Pescado', price: 1600 },
-      { id: 'camaron', name: 'Camarón', price: 1700 },
-      { id: 'veggie-chorizo', name: 'Veggie Chorizo', price: 1600 },
-    ],
+    id: 'burritos', suffix: 'Burrito', groups: ['guac', 'prep'],
+    items: burritoFillings(),
+  },
+  {
+    id: 'bowls', suffix: 'Bowl', groups: ['guac', 'prep'],
+    items: burritoFillings(),
   },
   {
     id: 'ensaladas', suffix: 'Ensalada', groups: ['dressing', 'protein', 'prep'],
