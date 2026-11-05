@@ -12,9 +12,19 @@ binding = "ASSETS"
 run_worker_first = ["/api/*"]
 
 # Clover settings that aren't secret (the merchant ID is also in js/order.js).
-# SANDBOX values. For the live merchant: CLOVER_ENV = "production", its
-# merchant ID and HST tax rate ID, and CLOVER_CURRENCY = "cad" (the sandbox
-# test merchant only accepts USD).
+# These are SANDBOX values (the sandbox test merchant only accepts USD).
+#
+# GOING LIVE, change [vars] below to the restaurant's live Clover merchant:
+#   CLOVER_ENV         = "production"
+#   CLOVER_MERCHANT_ID = the live merchant ID
+#   CLOVER_TAX_RATE_ID = the live merchant's HST 13% tax rate ID
+#   CLOVER_CURRENCY    = "cad"
+# and also (full checklist at the top of worker/index.js):
+#   - Cloudflare: Workers > tacos-de-princesa > Settings > Variables and
+#     Secrets > CLOVER_PRIVATE_TOKEN = the live private token (type Secret)
+#   - js/order.js CONFIG.clover: the live public token and merchant ID
+#   - order.html: Clover SDK https://checkout.clover.com/sdk.js
+# Keep [previews.vars] on the sandbox so previews never charge real cards.
 #
 # The one secret, never in this file: CLOVER_PRIVATE_TOKEN, the merchant's
 # private Ecommerce API token. Previews and the live Worker keep secrets

@@ -34,9 +34,13 @@
     kitchenLeadMinutes: 20,
     lastSlotBeforeClose: 15, // last pickup slot = closing time minus this
     daysAhead: 7,            // when closed, look this far ahead for the next open day
-    storageKey: 'tdp-order-cart-v1',
+    storageKey: 'tdp-order-cart-v1', // the cart (localStorage: shared by tabs)
+    cartMaxAgeHours: 24,             // older saved carts are dropped
+    sessionKey: 'tdp-order-session-v1', // this tab's step + pickup (sessionStorage)
     // Clover hosted card fields: SANDBOX merchant. The public key can only
-    // tokenize cards; the private token never goes in this file.
+    // tokenize cards; the private token never goes in this file. Going live:
+    // the live merchant's public token and ID here, plus the checklist at the
+    // top of worker/index.js.
     clover: {
       publicKey: 'b1115fedbe960f0ef8b1fa3b443a3b96',
       merchantId: '2N9FRNJANSV31',
@@ -198,6 +202,8 @@
   /* ---- 3. Cart -------------------------------------------------------- */
   // A line is { id, item (key), qty, mods: [{ g, label }], note }. Prices are
   // always looked up from MENU/GROUPS, so a saved cart picks up price changes.
+  // Saved as { savedAt, lines } (ids aren't saved; older saves are a bare
+  // array of lines).
 
   function findOption(groupKey, label) {
     const group = GROUPS[groupKey];
@@ -222,12 +228,19 @@
     return JSON.stringify([line.item, line.mods, line.note]);
   }
 
+  function validLine(line) {
+    return !!line && !!ITEMS[line.item] && Number.isInteger(line.qty) && line.qty > 0 && line.qty <= MAX_QTY &&
+      Array.isArray(line.mods) && line.mods.every(function (m) { return m && findOption(m.g, m.label); });
+  }
+
   function loadCart() {
     try {
-      const saved = JSON.parse(localStorage.getItem(CONFIG.storageKey)) || [];
-      return saved.filter(function (line) {
-        return line && ITEMS[line.item] && line.qty > 0 && Array.isArray(line.mods) &&
-          line.mods.every(function (m) { return findOption(m.g, m.label); });
+      let saved = JSON.parse(localStorage.getItem(CONFIG.storageKey));
+      if (Array.isArray(saved)) saved = { savedAt: Date.now(), lines: saved };
+      if (!saved || !Array.isArray(saved.lines)) return [];
+      if (Date.now() - saved.savedAt > CONFIG.cartMaxAgeHours * 3600000) return [];
+      return saved.lines.filter(validLine).map(function (line) {
+        return { id: 'l' + nextId++, item: line.item, qty: line.qty, mods: line.mods, note: typeof line.note === 'string' ? line.note : '' };
       });
     } catch (e) {
       return [];
@@ -236,13 +249,18 @@
 
   function saveCart() {
     try {
-      localStorage.setItem(CONFIG.storageKey, JSON.stringify(cart));
+      localStorage.setItem(CONFIG.storageKey, JSON.stringify({
+        savedAt: Date.now(),
+        lines: cart.map(function (line) {
+          return { item: line.item, qty: line.qty, mods: line.mods, note: line.note };
+        }),
+      }));
     } catch (e) { /* private mode etc.: the cart just won't survive a reload */ }
   }
 
-  let cart = loadCart();
+  const MAX_QTY = 20;
   let nextId = 1;
-  cart.forEach(function (line) { line.id = 'l' + nextId++; });
+  let cart = loadCart();
 
   function totals() {
     const subtotal = cart.reduce(function (sum, line) { return sum + unitPrice(line) * line.qty; }, 0);
@@ -357,7 +375,6 @@
   const groupsRoot = $('[data-item-groups]');
   const qtyOut = $('[data-qty]');
   const noteInput = $('[data-item-note]');
-  const MAX_QTY = 20;
   let current = null; // { item, qty }
 
   function groupHTML(key) {
@@ -491,7 +508,8 @@
       (line.note ? '<p class="cart-line__note">&ldquo;' + esc(line.note) + '&rdquo;</p>' : '') +
       '<div class="cart-line__actions">' +
         '<div class="qty qty--sm" role="group" aria-label="Quantity of ' + esc(name) + '">' +
-          '<button class="qty__btn" type="button" aria-label="One less" data-line-step="-1"' + (line.qty <= 1 ? ' disabled' : '') + '>&minus;</button>' +
+          // At 1, minus removes the dish (so it never sits there disabled)
+          '<button class="qty__btn" type="button" aria-label="' + (line.qty <= 1 ? 'Remove ' + esc(name) : 'One less') + '" data-line-step="-1">&minus;</button>' +
           '<span class="qty__value">' + line.qty + '</span>' +
           '<button class="qty__btn" type="button" aria-label="One more" data-line-step="1"' + (line.qty >= MAX_QTY ? ' disabled' : '') + '>+</button>' +
         '</div>' +
@@ -530,19 +548,12 @@
     const index = cart.findIndex(function (l) { return l.id === row.dataset.line; });
     if (index < 0) return;
 
-    if (button.hasAttribute('data-line-remove')) {
-      const name = lineName(cart[index]);
-      cart.splice(index, 1);
-      saveCart();
-      renderCart();
-      toast('Removed ' + name);
-      // Focus would otherwise be lost with the removed row
-      const next = linesEl.querySelectorAll('[data-line-remove]')[Math.min(index, cart.length - 1)];
-      (next || (desktop.matches ? checkoutBtn : $('[data-cart-close]'))).focus();
+    const step = Number(button.dataset.lineStep);
+    if (button.hasAttribute('data-line-remove') || (step === -1 && cart[index].qty <= 1)) {
+      removeLine(index);
       return;
     }
 
-    const step = Number(button.dataset.lineStep);
     if (step) {
       cart[index].qty = Math.min(MAX_QTY, Math.max(1, cart[index].qty + step));
       saveCart();
@@ -550,6 +561,39 @@
       // Keep focus on the same +/- button after the re-render
       const same = $('[data-line="' + row.dataset.line + '"] [data-line-step="' + step + '"]', linesEl);
       if (same) (same.disabled ? $('[data-line="' + row.dataset.line + '"] [data-line-step="' + -step + '"]', linesEl) : same).focus();
+    }
+  });
+
+
+  function removeLine(index) {
+    const name = lineName(cart[index]);
+    cart.splice(index, 1);
+    saveCart();
+    renderCart();
+    toast('Removed ' + name);
+    // Focus would otherwise be lost with the removed row
+    const next = linesEl.querySelectorAll('[data-line-remove]')[Math.min(index, cart.length - 1)];
+    if (next) next.focus();
+    else if (cartEl.contains(document.activeElement) || document.activeElement === document.body) {
+      (desktop.matches ? checkoutBtn : $('[data-cart-close]')).focus();
+    }
+  }
+
+  // Another tab changed the cart, or this page came back from the browser's
+  // back/forward cache: pick up the saved cart so both tabs agree
+  function syncCart() {
+    cart = loadCart();
+    renderCart();
+  }
+
+  window.addEventListener('storage', function (event) {
+    if (event.key === CONFIG.storageKey) syncCart();
+  });
+
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) {
+      syncCart();
+      if (document.body.dataset.step === 'details') refreshTimes();
     }
   });
 
@@ -596,7 +640,9 @@
 
   /* ---- 8. Steps ------------------------------------------------------- */
   // menu -> details (pickup) -> payment -> confirmed. Each step is a history
-  // entry, so the phone's back button goes back a step.
+  // entry, so the phone's back button goes back a step. The step, pickup
+  // details and a placed order are kept for this tab in sessionStorage, so a
+  // refresh comes back to the same place (see restore() at the end).
 
   const STEPS = ['menu', 'details', 'payment', 'confirmed'];
   let pickup = null;    // filled by the pickup form
@@ -628,6 +674,7 @@
     }
     setSheet(false);
     renderCart();
+    saveSession();
 
     if (changed) {
       if (!fromHistory) history.pushState({ step: step }, '');
@@ -641,7 +688,24 @@
     }
   }
 
-  history.replaceState({ step: 'menu' }, '');
+  function saveSession() {
+    try {
+      sessionStorage.setItem(CONFIG.sessionKey, JSON.stringify({
+        step: document.body.dataset.step,
+        form: pickupFormValues(),
+        pickup: pickup,
+        confirmed: confirmed,
+      }));
+    } catch (e) { /* storage blocked: a refresh just starts at the menu */ }
+  }
+
+  function loadSession() {
+    try {
+      return JSON.parse(sessionStorage.getItem(CONFIG.sessionKey)) || {};
+    } catch (e) {
+      return {};
+    }
+  }
 
   window.addEventListener('popstate', function (event) {
     goTo((event.state && event.state.step) || 'menu', true);
@@ -765,6 +829,47 @@
     if (event.target.name === 'location') refreshTimes();
   });
 
+  // Is this pickup time still on offer? (Slots pass while a page sits open.)
+  function pickupStillOffered(details) {
+    const day = details && LOCATIONS[details.location] && pickupDay(LOCATIONS[details.location]);
+    if (!day) return false;
+    if (details.asap) return day.asap;
+    const iso = day.date.toISOString().slice(0, 10);
+    return day.slots.some(function (t) { return iso + 'T' + hhmm(t) === details.time; });
+  }
+
+  // Back to the pickup step with the time list refreshed and a message
+  function pickupExpired(fromHistory) {
+    goTo('details', fromHistory);
+    timeSelect.setCustomValidity('That pickup time is no longer available. Please choose another.');
+    pickupForm.reportValidity();
+  }
+
+  // What's typed in the pickup form, kept through a refresh
+  function pickupFormValues() {
+    return {
+      name: pickupForm.elements.name.value,
+      phone: pickupForm.elements.phone.value,
+      location: selectedLocation(),
+      time: timeSelect.value,
+    };
+  }
+
+  function fillPickupForm(values) {
+    if (!values) return;
+    pickupForm.elements.name.value = values.name || '';
+    pickupForm.elements.phone.value = values.phone || '';
+    const radio = values.location && $('input[name="location"][value="' + values.location + '"]', pickupForm);
+    if (radio) radio.checked = true;
+    refreshTimes();
+    if (values.time && $all('option', timeSelect).some(function (o) { return o.value === values.time; })) {
+      timeSelect.value = values.time;
+    }
+  }
+
+  pickupForm.addEventListener('input', saveSession);
+  pickupForm.addEventListener('change', saveSession);
+
   refreshTimes();
 
 
@@ -772,12 +877,12 @@
 
   const phoneInput = $('#pickup-phone');
 
-  // 10 digits, or 11 starting with 1
+  // 10 digits, or 11 starting with 1; area codes don't start with 0 or 1
+  // (the Worker checks the same)
   function phoneDigits(value) {
-    const digits = value.replace(/\D/g, '');
-    if (digits.length === 10) return digits;
-    if (digits.length === 11 && digits[0] === '1') return digits.slice(1);
-    return null;
+    let digits = value.replace(/\D/g, '');
+    if (digits.length === 11 && digits[0] === '1') digits = digits.slice(1);
+    return /^[2-9]\d{9}$/.test(digits) ? digits : null;
   }
 
   phoneInput.addEventListener('input', function () {
@@ -959,6 +1064,10 @@
   payForm.addEventListener('submit', function (event) {
     event.preventDefault();
     if (!pickup || !cart.length || !clover || payButton.disabled) return;
+    if (!pickupStillOffered(pickup)) {
+      pickupExpired();
+      return;
+    }
 
     payButton.disabled = true;
     payStatus.textContent = 'Processing payment…';
@@ -1082,5 +1191,42 @@
     goTo('menu');
   });
 
-  renderCart();
+
+  /* ---- 13. Start (and refresh) ---------------------------------------- */
+  // A refresh (or back/forward to this page) comes back to where this tab was:
+  //   confirmed        -> the confirmation again (the cart was already emptied)
+  //   details/payment  -> that step with the pickup details refilled, if the
+  //                       cart still has items; payment drops back to details
+  //                       if the pickup time has passed
+  //   anything else    -> the menu
+  // Arriving any other way (a link, a new tab) starts at the menu with the
+  // saved cart; the pickup form keeps what this tab typed.
+
+  function restore() {
+    const saved = loadSession();
+    fillPickupForm(saved.form);
+
+    // A refresh or back/forward keeps this page's history state ({ step });
+    // arriving from a link or a new tab starts without one
+    if (!history.state || !history.state.step) return 'menu';
+
+    // Only while still on the confirmation: after Back to the menu, a new
+    // cart wins
+    const c = saved.confirmed;
+    if (saved.step === 'confirmed' && c && c.number && c.order && c.pickup && LOCATIONS[c.pickup.location] &&
+        Array.isArray(c.lines) && c.lines.every(validLine)) {
+      confirmed = c;
+      renderConfirmation();
+      return 'confirmed';
+    }
+
+    if (saved.pickup && LOCATIONS[saved.pickup.location]) pickup = saved.pickup;
+    if (saved.step === 'payment' && pickup && cart.length && !pickupStillOffered(pickup)) return 'expired';
+    return saved.step === 'details' || saved.step === 'payment' ? saved.step : 'menu';
+  }
+
+  const startStep = restore();
+  if (startStep === 'expired') pickupExpired(true);
+  else goTo(startStep, true);
+  history.replaceState({ step: document.body.dataset.step }, '');
 })();
