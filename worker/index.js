@@ -223,6 +223,9 @@ async function createOrder(request, env, url) {
       error: declined ? 'Your card was declined and no charge was made. Please try another card.'
         : badSource ? 'Your card details expired. Please enter them again.'
         : 'Payment didn’t go through and no charge was made. Please try again.',
+      // Sandbox only: Clover's own reason, for testing (e.g. the test
+      // merchant's per-card sale limit). Never shown to real customers.
+      detail: env.CLOVER_ENV === 'production' ? undefined : String((typeof paid.error === 'string' ? paid.error : error.message) || '').slice(0, 200) || undefined,
     }, declined ? 402 : badSource ? 400 : 502);
   }
 

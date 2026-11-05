@@ -1152,7 +1152,9 @@
         payStatus.textContent = '';
         placeOrder(result, lines, details);
       } else {
-        payStatus.textContent = result.error || 'Payment didn’t go through and no charge was made. Please try again.';
+        payStatus.textContent = (result.error || 'Payment didn’t go through and no charge was made. Please try again.') +
+          // Sandbox/preview only (the Worker never sends it in production)
+          (result.detail ? ' [Sandbox: ' + result.detail + ']' : '');
       }
     }, function () {
       // No answer: the order may or may not have gone through
