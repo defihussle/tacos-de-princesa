@@ -47,7 +47,7 @@ CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
 # don't inherit [vars]. Always the sandbox test merchant (USD only), so
 # previews never charge real cards.
 [previews.vars]
-ORDERING_OPEN = "true"
+ORDERING_OPEN = "false"   # TEMP Phase 2 test 6
 STORES_ENABLED = "one-york"
 CLOSED_DATES = ""
 CLOVER_ENV = "sandbox"
