@@ -11,38 +11,79 @@ directory = "."
 binding = "ASSETS"
 run_worker_first = ["/api/*"]
 
-# Clover settings that aren't secret (the merchant ID is also in js/order.js).
-# These are SANDBOX values (the sandbox test merchant only accepts USD).
-#
-# GOING LIVE, change [vars] below to the restaurant's live Clover merchant:
-#   CLOVER_ENV         = "production"
-#   CLOVER_MERCHANT_ID = the live merchant ID
-#   CLOVER_TAX_RATE_ID = the live merchant's HST 13% tax rate ID
-#   CLOVER_CURRENCY    = "cad"
-# and also (full checklist at the top of worker/index.js):
-#   - Cloudflare: Workers > tacos-de-princesa > Settings > Variables and
-#     Secrets > CLOVER_PRIVATE_TOKEN = the live private token (type Secret)
-#   - js/order.js CONFIG.clover: the live public token and merchant ID
-#   - order.html: Clover SDK https://checkout.clover.com/sdk.js
-# Keep [previews.vars] on the sandbox so previews never charge real cards.
-#
-# The one secret, never in this file: CLOVER_PRIVATE_TOKEN, the merchant's
-# private Ecommerce API token. Previews and the live Worker keep secrets
-# separately (preview: Preview base config / `wrangler preview secret`;
-# live: Settings > Variables and Secrets).
-# Optional: CLOVER_ORDER_TYPE_ID, an order type such as "Online Pickup".
-[vars]
-CLOVER_ENV = "sandbox"
-CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
-CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A" # sandbox "HST" 13%
-CLOVER_CURRENCY = "usd"
+# Workers Logs: console output of every request, searchable in the
+# dashboard (Workers > the Worker > Logs). One line per order:
+#   ORDER <orderId> store=<store> amount=<cents> print=<printEventId|FAILED>
+# and PRINT FAILED <orderId> when the kitchen printer couldn't be reached.
+[observability]
+enabled = true
 
-# Previews (`npx wrangler preview`, the deploy command for preview builds)
-# don't inherit [vars]: they need their own copy here. Preview secrets come
-# from Settings > Previews Base (copied into each NEW Preview when it's
-# created) or `wrangler preview secret put`.
-[previews.vars]
+# ---------------------------------------------------------------------------
+# Settings (what each one means: top of worker/index.js; going live:
+# docs/go-live.md). Three places, each with its own copy:
+#   [vars]                 the production Worker (deployed from main)
+#   [previews.vars]        Preview builds of other branches: SANDBOX only
+#   [env.livetest.vars]    the private live test Worker (below)
+# Per-store values: add the store suffix to override the shared one, e.g.
+# CLOVER_MERCHANT_ID_ONE_YORK. Secrets are never in this file: the private
+# token is CLOVER_PRIVATE_TOKEN (or CLOVER_PRIVATE_TOKEN_ONE_YORK ...), set
+# in the dashboard (production: Settings > Variables and Secrets; previews:
+# Settings > Previews base config, or `wrangler preview secret put`).
+# ---------------------------------------------------------------------------
+
+# PRODUCTION. Ordering stays OFF until launch; these Clover values are still
+# the SANDBOX ones and must be replaced (docs/go-live.md).
+[vars]
+ORDERING_OPEN = "false"
+STORES_ENABLED = "one-york"
+CLOSED_DATES = ""          # PATH holidays, e.g. "2026-12-25,2026-12-28"
 CLOVER_ENV = "sandbox"
-CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
-CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
 CLOVER_CURRENCY = "usd"
+CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
+CLOVER_PUBLIC_KEY = "b1115fedbe960f0ef8b1fa3b443a3b96"
+CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
+
+# PREVIEWS (`npx wrangler preview`, the deploy command for preview builds)
+# don't inherit [vars]. Always the sandbox test merchant (USD only), so
+# previews never charge real cards.
+[previews.vars]
+ORDERING_OPEN = "true"
+STORES_ENABLED = "one-york"
+CLOSED_DATES = ""
+CLOVER_ENV = "sandbox"
+CLOVER_CURRENCY = "usd"
+CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
+CLOVER_PUBLIC_KEY = "b1115fedbe960f0ef8b1fa3b443a3b96"
+CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A" # sandbox "HST" 13%
+
+# PRIVATE LIVE TEST: a separate Worker, tacos-de-princesa-livetest, on its
+# workers.dev address only (no custom domain), with the restaurant's LIVE
+# Clover settings, to place real low-value orders before launch.
+#   Deploy:  npx wrangler deploy --env livetest
+#   Secret:  npx wrangler secret put CLOVER_PRIVATE_TOKEN --env livetest
+#            (the live private token; never shared with the other Workers)
+# Cloudflare Access will be put in front of its workers.dev address later,
+# so only the team can open it. Until then, keep ORDERING_OPEN = "false"
+# except while testing.
+[env.livetest]
+name = "tacos-de-princesa-livetest"
+workers_dev = true
+
+[env.livetest.assets]
+directory = "."
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[env.livetest.observability]
+enabled = true
+
+[env.livetest.vars]
+ORDERING_OPEN = "false"
+STORES_ENABLED = "one-york"
+CLOSED_DATES = ""
+CLOVER_ENV = "production"
+CLOVER_CURRENCY = "cad"
+CLOVER_MERCHANT_ID = ""    # live merchant ID
+CLOVER_PUBLIC_KEY = ""     # live public (Ecommerce) key
+CLOVER_TAX_RATE_ID = ""    # live HST 13% tax rate ID
+CLOVER_ORDER_TYPE_ID = ""  # live "Online Pickup" order type ID (required in production)

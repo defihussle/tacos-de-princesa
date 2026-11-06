@@ -9,3 +9,4 @@ worker
 .dev.vars
 scripts
 .gitattributes
+docs

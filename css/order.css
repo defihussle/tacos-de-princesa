@@ -210,6 +210,20 @@ html:has(.item-dialog[open]) {
   box-shadow: var(--shadow);
 }
 
+/* Ordering paused / closed (same look as the confirmation note) */
+.order-notice {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid rgba(237, 21, 102, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(237, 21, 102, 0.04);
+  font-weight: 600;
+}
+
+.order-notice[hidden] {
+  display: none;
+}
+
 
 /* ==========================================================================
    4. Category chips (sticky under the header, scroll sideways on phones)
@@ -1024,6 +1038,11 @@ html:has(.item-dialog[open]) {
   }
 }
 
+/* A store not taking online orders yet */
+.choice[hidden] {
+  display: none;
+}
+
 /* Radio card: the radio itself sits top-right */
 .choice {
   position: relative;
@@ -1448,7 +1467,7 @@ html:has(.item-dialog[open]) {
   margin: 0;
 }
 
-.confirm__sms {
+.confirm__note {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -1460,7 +1479,7 @@ html:has(.item-dialog[open]) {
   font-size: 0.95rem;
 }
 
-.confirm__sms svg {
+.confirm__note svg {
   flex: none;
   width: 24px;
   height: 24px;

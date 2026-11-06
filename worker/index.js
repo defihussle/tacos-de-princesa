@@ -3,48 +3,48 @@
    The site is static files (wrangler.toml [assets]); this Worker only runs
    for /api/* (run_worker_first) and anything without a matching file.
 
+   GET /api/config
+     What the ordering page needs: { environment, sdkUrl, orderingOpen,
+     closedDates, phone, stores: { 'one-york': { publicKey, merchantId } } }.
+     Only enabled stores are listed; nothing secret is in it.
+
    POST /api/create-order   (JSON, same-site only)
      { source: 'clv_…', cart: [{ item, qty, mods: [{ g, label }], note }],
        pickup: { name, phone, location, asap, time: 'YYYY-MM-DDTHH:MM' | null } }
-   Checks everything, prices the cart from worker/menu.js (browser prices are
-   never trusted), creates a Clover atomic order, then pays it with the card
-   token. An order that isn't paid is deleted, so it never reaches the kitchen.
+   Checks everything (ordering open, store enabled, same-day pickup while
+   open), prices the cart from worker/menu.js (browser prices are never
+   trusted), creates a Clover atomic order with the store's settings, pays
+   it with the card token, then sends it to the kitchen printer. An order
+   that isn't paid is deleted, so it never reaches the kitchen.
      -> 200 { success: true, orderId, total }
      -> 4xx/5xx { success: false, error }   (error is shown to the customer)
 
    GET /api/health
-     Which settings this deployment can see (yes/no only, never values) and
-     the commit it was built from (BUILD_COMMIT, set by
-     scripts/deploy-preview.sh), to check a deployment's setup.
+     Ordering open, enabled stores and, per store, which settings are set
+     and a live Clover check of its tax rate and order type: yes/no and
+     ok/fail only, never values. Plus the commit it was built from
+     (BUILD_COMMIT, set by scripts/deploy-preview.sh).
 
-   Settings: the secret CLOVER_PRIVATE_TOKEN (the merchant's private
-   Ecommerce API token; see wrangler.toml for where it's set), and in
-   wrangler.toml [vars] / [previews.vars]: CLOVER_ENV, CLOVER_MERCHANT_ID,
-   CLOVER_TAX_RATE_ID, CLOVER_CURRENCY, optionally CLOVER_ORDER_TYPE_ID.
+   SETTINGS (wrangler.toml [vars] / [previews.vars] / [env.livetest.vars])
+     ORDERING_OPEN       "true" to take orders; anything else pauses them
+     STORES_ENABLED      stores taking orders, e.g. "one-york" or
+                         "one-york,king-st-w"
+     CLOSED_DATES        days with no pickups (PATH holidays), Toronto dates:
+                         "2026-12-25,2026-12-28"; empty for none
+     CLOVER_ENV          "sandbox" or "production"
+     CLOVER_CURRENCY     "usd" (sandbox test merchant) or "cad"
+   Per store, each of these can be suffixed with the store (_ONE_YORK,
+   _KING_ST_W) to override the shared value, e.g. CLOVER_MERCHANT_ID_ONE_YORK:
+     CLOVER_MERCHANT_ID, CLOVER_PUBLIC_KEY, CLOVER_TAX_RATE_ID,
+     CLOVER_ORDER_TYPE_ID (required in production),
+     CLOVER_PRIVATE_TOKEN (a secret: never in wrangler.toml)
 
-   GOING LIVE (sandbox -> the restaurant's Clover merchant)
-   1. Clover: in the live merchant's dashboard, create an Ecommerce API token
-      ("Hosted iFrame + API/SDK") and an HST 13% tax rate; note the public
-      token, private token, merchant ID and tax rate ID. Check the merchant's
-      currency is CAD.
-   2. wrangler.toml [vars]: CLOVER_ENV = "production", CLOVER_MERCHANT_ID,
-      CLOVER_TAX_RATE_ID (live values), CLOVER_CURRENCY = "cad".
-   3. Cloudflare: Workers > tacos-de-princesa > Settings > Variables and
-      Secrets: CLOVER_PRIVATE_TOKEN = the live private token (type Secret).
-   4. js/order.js CONFIG.clover: the live public token and merchant ID.
-   5. order.html: the Clover SDK script becomes https://checkout.clover.com/sdk.js
-   6. Place a real low-value order, check it in Clover, refund it.
+   GOING LIVE: see docs/go-live.md.
 
    NOT DONE YET (known gaps)
-   - Kitchen: orders appear in Clover but aren't sent to the order printer or
-     Kitchen Display. Next step: POST /v3/merchants/{mId}/print_event
-     { orderRef: { id } } after payment, then check on the restaurant's devices.
-   - Timing: scheduled orders reach Clover as soon as they're paid; holding
-     them until 20 minutes before pickup needs a scheduled job (Cron Trigger
-     plus storage such as KV or a Durable Object).
-   - SMS: the confirmation page says a text is coming; nothing sends one.
-   - No rate limiting on /api/create-order (Clover's reCAPTCHA on the card
-     form is the only bot check). Consider Cloudflare rate limiting rules.
+   - Timing: scheduled pickups print as soon as they're paid; holding them
+     until 20 minutes before pickup needs a scheduled job (Cron Trigger plus
+     storage such as KV or a Durable Object).
    - If Clover creates the order but the connection drops before its reply,
      that unpaid order can't be cleaned up here (its ID never arrives).
    ========================================================================== */
@@ -52,23 +52,22 @@
 import { GROUPS, ITEMS, TAX_RATE } from './menu.js';
 
 const CLOVER_URLS = {
-  sandbox: { api: 'https://apisandbox.dev.clover.com', ecom: 'https://scl-sandbox.dev.clover.com' },
-  production: { api: 'https://api.clover.com', ecom: 'https://scl.clover.com' },
+  sandbox: { api: 'https://apisandbox.dev.clover.com', ecom: 'https://scl-sandbox.dev.clover.com', sdk: 'https://checkout.sandbox.dev.clover.com/sdk.js' },
+  production: { api: 'https://api.clover.com', ecom: 'https://scl.clover.com', sdk: 'https://checkout.clover.com/sdk.js' },
 };
 
 // Keep in sync with LOCATIONS and CONFIG (pickup timing) in js/order.js.
-// days: 0 = Sunday ... 6 = Saturday
+// suffix: the store's settings suffix. days: 0 = Sunday ... 6 = Saturday
 const LOCATIONS = {
-  'king-st-w': { label: 'King St W (150 King St W, in the PATH)', days: [1, 2, 3, 4, 5], open: '10:30', close: '18:00' },
-  'one-york': { label: 'One York (One York Street, 2nd Floor)', days: [1, 2, 3, 4, 5], open: '10:30', close: '18:00' },
+  'king-st-w': { label: 'King St W (150 King St W, in the PATH)', suffix: 'KING_ST_W', days: [1, 2, 3, 4, 5], open: '10:30', close: '18:00' },
+  'one-york': { label: 'One York (One York Street, 2nd Floor)', suffix: 'ONE_YORK', days: [1, 2, 3, 4, 5], open: '10:30', close: '19:00' },
 };
 
 const PICKUP = {
   timeZone: 'America/Toronto',
   slotMinutes: 15,
   kitchenLeadMinutes: 20,
-  lastSlotBeforeClose: 15,
-  daysAhead: 7,
+  lastSlotBeforeClose: 30,
   graceMinutes: 10, // a slot chosen a few minutes ago may now be slightly too soon
 };
 
@@ -79,6 +78,7 @@ const LIMITS = {
 
 const PHONE = '647-298-2267';
 const BIG_ORDER = 'That’s a big order! Please call us at ' + PHONE + ' to place it.';
+const PAUSED = 'Online ordering is paused, please call ' + PHONE + '.';
 
 export default {
   async fetch(request, env) {
@@ -87,7 +87,8 @@ export default {
       if (request.method !== 'POST') return json({ success: false, error: 'Use POST.' }, 405, { Allow: 'POST' });
       return createOrder(request, env, url);
     }
-    if (url.pathname === '/api/health') return json(health(env));
+    if (url.pathname === '/api/config') return json(config(env));
+    if (url.pathname === '/api/health') return json(await health(env));
     if (url.pathname.startsWith('/api/')) return json({ success: false, error: 'Not found.' }, 404);
     return env.ASSETS.fetch(request);
   },
@@ -100,21 +101,112 @@ function json(body, status, headers) {
   });
 }
 
-const REQUIRED = ['CLOVER_PRIVATE_TOKEN', 'CLOVER_MERCHANT_ID', 'CLOVER_TAX_RATE_ID'];
 
-function missingSettings(env) {
-  return REQUIRED.filter(function (key) { return !env[key]; });
+/* ---- Settings --------------------------------------------------------- */
+
+function cloverUrls(env) {
+  return CLOVER_URLS[isProduction(env) ? 'production' : 'sandbox'];
 }
 
-function health(env) {
-  const settings = {};
-  REQUIRED.forEach(function (key) { settings[key] = !!env[key]; });
+function isProduction(env) {
+  return env.CLOVER_ENV === 'production';
+}
+
+function orderingOpen(env) {
+  return env.ORDERING_OPEN === 'true';
+}
+
+function list(value) {
+  return String(value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
+function enabledStores(env) {
+  return list(env.STORES_ENABLED).filter(function (id) { return Object.prototype.hasOwnProperty.call(LOCATIONS, id); });
+}
+
+function closedDates(env) {
+  return list(env.CLOSED_DATES).filter(function (d) { return /^\d{4}-\d{2}-\d{2}$/.test(d); });
+}
+
+// A store's value for a setting: CLOVER_X_ONE_YORK, else the shared CLOVER_X
+function storeSetting(env, id, key) {
+  return env[key + '_' + LOCATIONS[id].suffix] || env[key] || '';
+}
+
+function storeSettings(env, id) {
   return {
-    ready: !missingSettings(env).length,
+    merchantId: storeSetting(env, id, 'CLOVER_MERCHANT_ID'),
+    publicKey: storeSetting(env, id, 'CLOVER_PUBLIC_KEY'),
+    taxRateId: storeSetting(env, id, 'CLOVER_TAX_RATE_ID'),
+    orderTypeId: storeSetting(env, id, 'CLOVER_ORDER_TYPE_ID'),
+    privateToken: storeSetting(env, id, 'CLOVER_PRIVATE_TOKEN'),
+  };
+}
+
+function requiredSettings(env) {
+  const keys = ['CLOVER_PRIVATE_TOKEN', 'CLOVER_MERCHANT_ID', 'CLOVER_PUBLIC_KEY', 'CLOVER_TAX_RATE_ID'];
+  if (isProduction(env)) keys.push('CLOVER_ORDER_TYPE_ID');
+  return keys;
+}
+
+function missingSettings(env, id) {
+  return requiredSettings(env).filter(function (key) { return !storeSetting(env, id, key); });
+}
+
+function config(env) {
+  const stores = {};
+  enabledStores(env).forEach(function (id) {
+    const s = storeSettings(env, id);
+    stores[id] = { publicKey: s.publicKey, merchantId: s.merchantId };
+  });
+  return {
+    environment: isProduction(env) ? 'production' : 'sandbox',
+    sdkUrl: cloverUrls(env).sdk,
+    orderingOpen: orderingOpen(env),
+    closedDates: closedDates(env),
+    phone: PHONE,
+    stores: stores,
+  };
+}
+
+async function health(env) {
+  const stores = {};
+  await Promise.all(enabledStores(env).map(async function (id) {
+    const s = storeSettings(env, id);
+    const settings = {};
+    requiredSettings(env).concat(isProduction(env) ? [] : ['CLOVER_ORDER_TYPE_ID']).forEach(function (key) {
+      settings[key] = !!storeSetting(env, id, key);
+    });
+
+    // Read the tax rate and order type back from Clover with this store's
+    // token: proves the token, merchant and IDs belong together
+    const auth = { authorization: 'Bearer ' + s.privateToken };
+    const merchantUrl = cloverUrls(env).api + '/v3/merchants/' + encodeURIComponent(s.merchantId);
+    const check = function (path, id) {
+      if (!id) return Promise.resolve('not set');
+      if (!s.privateToken || !s.merchantId) return Promise.resolve('fail');
+      return clover(merchantUrl + path + encodeURIComponent(id), auth, null, 'GET', 8000)
+        .then(function (r) { return r.ok && r.data && r.data.id === id ? 'ok' : 'fail'; });
+    };
+    const results = await Promise.all([check('/tax_rates/', s.taxRateId), check('/order_types/', s.orderTypeId)]);
+
+    stores[id] = {
+      ready: !missingSettings(env, id).length && results[0] === 'ok' && (results[1] === 'ok' || (!isProduction(env) && results[1] === 'not set')),
+      settings: settings,
+      orderTypeSet: !!s.orderTypeId,
+      clover: { taxRate: results[0], orderType: results[1] },
+    };
+  }));
+
+  return {
+    ready: orderingOpen(env) && Object.keys(stores).length > 0 && Object.keys(stores).every(function (id) { return stores[id].ready; }),
     commit: env.BUILD_COMMIT || 'unknown',
-    clover: env.CLOVER_ENV === 'production' ? 'production' : 'sandbox',
+    clover: isProduction(env) ? 'production' : 'sandbox',
     currency: env.CLOVER_CURRENCY || 'cad',
-    settings: settings,
+    orderingOpen: orderingOpen(env),
+    storesEnabled: enabledStores(env),
+    closedDates: closedDates(env).length,
+    stores: stores,
   };
 }
 
@@ -125,11 +217,8 @@ class BadRequest extends Error {}
 /* ---- Create + pay ----------------------------------------------------- */
 
 async function createOrder(request, env, url) {
-  const missing = missingSettings(env);
-  if (missing.length) {
-    console.error('create-order: missing settings: ' + missing.join(', '));
-    return json({ success: false, error: 'Online payment isn’t set up yet. Please call us at ' + PHONE + ' to order.' }, 503);
-  }
+  // The switch is checked here, not only on the page
+  if (!orderingOpen(env)) return json({ success: false, error: PAUSED }, 503);
 
   // Only the ordering page (same site, JSON) may place orders
   const origin = request.headers.get('origin');
@@ -142,31 +231,38 @@ async function createOrder(request, env, url) {
   try {
     const text = await request.text();
     if (text.length > LIMITS.bodyBytes) throw new BadRequest(BIG_ORDER);
-    order = priceOrder(JSON.parse(text), new Date());
+    order = priceOrder(JSON.parse(text), new Date(), env);
   } catch (error) {
     if (error instanceof BadRequest) return json({ success: false, error: error.message }, 400);
     return json({ success: false, error: 'The order couldn’t be read. Please refresh and try again.' }, 400);
   }
 
-  const urls = CLOVER_URLS[env.CLOVER_ENV === 'production' ? 'production' : 'sandbox'];
-  const auth = { authorization: 'Bearer ' + env.CLOVER_PRIVATE_TOKEN };
-  const merchantUrl = urls.api + '/v3/merchants/' + encodeURIComponent(env.CLOVER_MERCHANT_ID);
+  const store = order.location;
+  const missing = missingSettings(env, store);
+  if (missing.length) {
+    console.error('create-order: missing settings for ' + store + ': ' + missing.join(', '));
+    return json({ success: false, error: 'Online payment isn’t set up yet. Please call us at ' + PHONE + ' to order.' }, 503);
+  }
+  const s = storeSettings(env, store);
+  const urls = cloverUrls(env);
+  const auth = { authorization: 'Bearer ' + s.privateToken };
+  const merchantUrl = urls.api + '/v3/merchants/' + encodeURIComponent(s.merchantId);
   const orderUrl = function (id) { return merchantUrl + '/orders/' + encodeURIComponent(id); };
 
-  // 1. Create the order (Clover adds the tax from CLOVER_TAX_RATE_ID)
+  // 1. Create the order (Clover adds the tax from the store's tax rate)
   const orderCart = {
     title: 'Online Pickup',
     note: order.note,
     lineItems: order.lineItems.map(function (line) {
-      return { name: line.name, price: line.price, note: line.note || undefined, taxRates: [{ id: env.CLOVER_TAX_RATE_ID }] };
+      return { name: line.name, price: line.price, note: line.note || undefined, taxRates: [{ id: s.taxRateId }] };
     }),
   };
-  if (env.CLOVER_ORDER_TYPE_ID) orderCart.orderType = { id: env.CLOVER_ORDER_TYPE_ID };
+  if (s.orderTypeId) orderCart.orderType = { id: s.orderTypeId };
 
   const created = await clover(merchantUrl + '/atomic_order/orders', auth, { orderCart: orderCart });
   const orderId = created.ok && created.data && created.data.id;
   if (!orderId) {
-    console.error('create-order: atomic order failed', created.status, created.error);
+    console.error('create-order: atomic order failed', store, created.status, created.error);
     return json({ success: false, error: 'We couldn’t place your order and no charge was made. Please try again.' }, 502);
   }
 
@@ -199,8 +295,8 @@ async function createOrder(request, env, url) {
     if (paid.status === 0 || paid.status >= 500) {
       const check = await clover(orderUrl(orderId), auth, null, 'GET');
       if (check.ok && check.data && check.data.paymentState === 'PAID') {
-        console.log('create-order: paid (confirmed after an unclear reply)', orderId, amount);
-        return json({ success: true, orderId: orderId, total: amount });
+        console.log('create-order: paid (confirmed after an unclear reply)', orderId);
+        return paidOrder(merchantUrl, auth, orderId, store, amount);
       }
       if (!check.ok) {
         console.error('create-order: PAYMENT STATE UNKNOWN, order left in Clover', orderId, check.status);
@@ -225,11 +321,22 @@ async function createOrder(request, env, url) {
         : 'Payment didn’t go through and no charge was made. Please try again.',
       // Sandbox only: Clover's own reason, for testing (e.g. the test
       // merchant's per-card sale limit). Never shown to real customers.
-      detail: env.CLOVER_ENV === 'production' ? undefined : String((typeof paid.error === 'string' ? paid.error : error.message) || '').slice(0, 200) || undefined,
+      detail: isProduction(env) ? undefined : String((typeof paid.error === 'string' ? paid.error : error.message) || '').slice(0, 200) || undefined,
     }, declined ? 402 : badSource ? 400 : 502);
   }
 
-  console.log('create-order: paid', orderId, amount);
+  return paidOrder(merchantUrl, auth, orderId, store, amount);
+}
+
+// 3. Paid: send it to the kitchen printer, log the order, answer success.
+// A failed print never turns a paid order into an error for the customer.
+async function paidOrder(merchantUrl, auth, orderId, store, amount) {
+  const printed = await clover(merchantUrl + '/print_event', auth, { orderRef: { id: orderId } }, 'POST', 8000);
+  const printId = printed.ok && printed.data && printed.data.id;
+  if (!printId) {
+    console.error('PRINT FAILED ' + orderId + ' (store ' + store + ', HTTP ' + printed.status + '): print it from Clover by hand', printed.error);
+  }
+  console.log('ORDER ' + orderId + ' store=' + store + ' amount=' + amount + ' print=' + (printId || 'FAILED'));
   return json({ success: true, orderId: orderId, total: amount });
 }
 
@@ -242,13 +349,15 @@ async function deleteUnpaid(url, auth) {
 }
 
 // Call Clover. Returns { ok, status, data, error } and never throws; error is
-// Clover's error object or message, without request details.
-async function clover(url, headers, body, method) {
+// Clover's error object or message, without request details. timeoutMs, if
+// given, gives up (status 0) after that long.
+async function clover(url, headers, body, method, timeoutMs) {
   try {
     const response = await fetch(url, {
       method: method || 'POST',
       headers: Object.assign({ accept: 'application/json', 'content-type': 'application/json' }, headers),
       body: body ? JSON.stringify(body) : undefined,
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     });
     const text = await response.text();
     let data = null;
@@ -268,7 +377,7 @@ async function clover(url, headers, body, method) {
 /* ---- Pricing + validation --------------------------------------------- */
 // Cart lines use the same shape as the cart in js/order.js
 
-function priceOrder(body, now) {
+function priceOrder(body, now, env) {
   if (!body || typeof body !== 'object') throw new BadRequest('The order is empty.');
 
   const source = body.source;
@@ -290,12 +399,13 @@ function priceOrder(body, now) {
   });
   if (lineItems.length > LIMITS.itemsMax) throw new BadRequest(BIG_ORDER);
 
-  const pickup = checkPickup(body.pickup, now);
+  const pickup = checkPickup(body.pickup, now, env);
   const tax = Math.round(subtotal * TAX_RATE);
   if (subtotal + tax > LIMITS.totalMax) throw new BadRequest(BIG_ORDER);
 
   return {
     source: source,
+    location: pickup.location,
     lineItems: lineItems,
     subtotal: subtotal,
     tax: tax,
@@ -310,7 +420,7 @@ function priceOrder(body, now) {
   };
 }
 
-// -> { name: 'Pollo Burrito', price: 1800, note: 'Bowl, Add guacamole. "extra spicy"' }
+// -> { name: 'Pollo Burrito', price: 1800, note: 'Add guacamole. "extra spicy"' }
 function priceLine(line) {
   const unknown = new BadRequest('Something in your cart is no longer on the menu. Please remove it and try again.');
   if (!line || typeof line !== 'object' || typeof line.item !== 'string') throw unknown;
@@ -330,7 +440,7 @@ function priceLine(line) {
     seen[mod.g + '|' + mod.label] = true;
     price += option.price;
   });
-  // 'one' groups (e.g. bowl or wrap) need exactly one choice
+  // 'one' groups (e.g. a salad's dressing) need exactly one choice
   item.groups.forEach(function (key) {
     if (GROUPS[key].type !== 'one') return;
     if (mods.filter(function (m) { return m.g === key; }).length !== 1) throw unknown;
@@ -350,7 +460,10 @@ function priceLine(line) {
   };
 }
 
-function checkPickup(pickup, now) {
+// Same-day pickup only, while the store is open (same rules as pickupDay()
+// in js/order.js): ASAP, or a 15-minute slot from 20 minutes from now up to
+// 30 minutes before closing. Never on CLOSED_DATES.
+function checkPickup(pickup, now, env) {
   if (!pickup || typeof pickup !== 'object') throw new BadRequest('Pickup details are missing.');
 
   const name = clean(typeof pickup.name === 'string' ? pickup.name : '').slice(0, LIMITS.nameMax);
@@ -362,33 +475,34 @@ function checkPickup(pickup, now) {
   if (typeof pickup.location !== 'string' || !Object.prototype.hasOwnProperty.call(LOCATIONS, pickup.location)) {
     throw new BadRequest('Please choose a pickup location.');
   }
+  if (enabledStores(env).indexOf(pickup.location) === -1) {
+    throw new BadRequest('That location isn’t taking online orders yet. Please call us at ' + PHONE + '.');
+  }
+
   const location = LOCATIONS[pickup.location];
   const open = toMinutes(location.open);
-  const close = toMinutes(location.close);
+  const last = toMinutes(location.close) - PICKUP.lastSlotBeforeClose;
   const today = torontoNow(now);
+  const closed = new BadRequest('We’re not taking online orders right now. Please call us at ' + PHONE + '.');
   const timeGone = new BadRequest('That pickup time is no longer available. Please go back and choose another.');
+
+  // Open now: a store day, not a closed date, between opening and the last
+  // time an ASAP order can still be ready by the last slot
+  if (location.days.indexOf(today.weekday) === -1 || closedDates(env).indexOf(today.iso) !== -1 ||
+      today.minutes < open || today.minutes + PICKUP.kitchenLeadMinutes > last + PICKUP.graceMinutes) throw closed;
 
   let when;
   if (pickup.asap === true) {
-    // Same rule as the page: ASAP only while open, with time to cook
-    if (location.days.indexOf(today.weekday) === -1 || today.minutes < open ||
-        today.minutes + PICKUP.kitchenLeadMinutes > close + PICKUP.graceMinutes) throw timeGone;
     when = 'ASAP (ordered ' + timeText(today.minutes) + ')';
   } else {
-    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(typeof pickup.time === 'string' ? pickup.time : '');
+    const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(typeof pickup.time === 'string' ? pickup.time : '');
     if (!m) throw new BadRequest('Please choose a pickup time.');
-    // The time is Toronto time; work in whole days and minutes, no conversion
-    const day = Date.UTC(+m[1], +m[2] - 1, +m[3]);
-    const minutes = +m[4] * 60 + +m[5];
-    const daysAway = Math.round((day - Date.UTC(today.y, today.m - 1, today.d)) / 86400000);
-    const weekday = new Date(day).getUTCDay();
-    if (isNaN(daysAway) || daysAway < 0 || daysAway > PICKUP.daysAhead ||
-        location.days.indexOf(weekday) === -1 ||
+    const minutes = +m[2] * 60 + +m[3];
+    if (m[1] !== today.iso ||
         minutes % PICKUP.slotMinutes !== 0 ||
-        minutes < open + PICKUP.kitchenLeadMinutes || minutes > close - PICKUP.lastSlotBeforeClose ||
-        (daysAway === 0 && minutes < today.minutes + PICKUP.kitchenLeadMinutes - PICKUP.graceMinutes)) throw timeGone;
-    when = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })
-      .format(new Date(day)) + ', ' + timeText(minutes);
+        minutes < open + PICKUP.kitchenLeadMinutes || minutes > last ||
+        minutes < today.minutes + PICKUP.kitchenLeadMinutes - PICKUP.graceMinutes) throw timeGone;
+    when = 'Today ' + timeText(minutes);
   }
 
   return {
@@ -399,7 +513,7 @@ function checkPickup(pickup, now) {
   };
 }
 
-// Today's date, weekday and minutes since midnight in Toronto
+// Today's date ('YYYY-MM-DD'), weekday and minutes since midnight in Toronto
 function torontoNow(now) {
   const p = {};
   new Intl.DateTimeFormat('en-CA', {
@@ -407,7 +521,11 @@ function torontoNow(now) {
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   }).formatToParts(now).forEach(function (part) { p[part.type] = part.value; });
   const y = +p.year, m = +p.month, d = +p.day;
-  return { y: y, m: m, d: d, weekday: new Date(Date.UTC(y, m - 1, d)).getUTCDay(), minutes: +p.hour * 60 + +p.minute };
+  return {
+    iso: p.year + '-' + p.month + '-' + p.day,
+    weekday: new Date(Date.UTC(y, m - 1, d)).getUTCDay(),
+    minutes: +p.hour * 60 + +p.minute,
+  };
 }
 
 function toMinutes(hhmm) {

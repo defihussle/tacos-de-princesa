@@ -28,10 +28,9 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/order.css">
   <script src="js/main.js" defer></script>
-  <!-- Clover hosted card fields: SANDBOX (production is
-       https://checkout.clover.com/sdk.js) -->
-  <script src="https://checkout.sandbox.dev.clover.com/sdk.js" defer></script>
-  <!-- Menu data, cart, pickup times and the payment step: js/order.js -->
+  <!-- Menu data, cart, pickup times and the payment step: js/order.js. It
+       loads Clover's card-field SDK from the URL in /api/config (sandbox or
+       production, set by the Worker). -->
   <script src="js/order.js" defer></script>
 </head>
 <body class="order-page" data-step="menu">
@@ -73,7 +72,8 @@
     <!-- ===== TITLE + PROGRESS (on the hero's wall texture) ============== -->
     <div class="order-hero">
       <div class="container">
-        <p class="eyebrow">King St W &middot; One York</p>
+        <!-- Replaced with the stores taking orders (from /api/config) -->
+        <p class="eyebrow" data-store-names>King St W &middot; One York</p>
         <h1>Order for pickup</h1>
         <ol class="order-progress" aria-label="Order progress">
           <li data-progress="menu" aria-current="step"><span>Menu</span></li>
@@ -85,6 +85,10 @@
 
     <div class="container order__layout">
       <div class="order__main">
+
+        <!-- Paused, or closed with the next opening and the phone number
+             (js/order.js closedMessage). Hidden while orders are open. -->
+        <p class="order-notice" role="status" data-order-notice hidden></p>
 
         <!-- ===== STEP 1: MENU ============================================
              Categories and dishes are rendered from the MENU data in
@@ -211,10 +215,10 @@
               </dl>
             </div>
 
-            <!-- SMS is a placeholder: the backend will send this text later -->
-            <p class="confirm__sms">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <span>We&rsquo;ll text a confirmation to <strong data-confirm-phone></strong>.</span>
+            <!-- No text message is sent: the page itself is the receipt -->
+            <p class="confirm__note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span><strong>Take a screenshot of this page.</strong> Questions about your order? Call <a href="tel:+16472982267">647-298-2267</a>.</span>
             </p>
 
             <div class="btn-group confirm__actions">

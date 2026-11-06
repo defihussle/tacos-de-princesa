@@ -3,7 +3,7 @@
    Online ordering for pickup (order.html): menu, item options, cart, pickup
    details and the payment step. Prices are in cents to keep the maths exact.
 
-   0.  Config (tax, pickup timing, locations)
+   0.  Config (tax, pickup timing, locations; Clover settings from the Worker)
    1.  Menu data
    2.  Helpers
    3.  Cart (saved in this browser)
@@ -16,6 +16,7 @@
    10. Pickup form
    11. Payment step
    12. Confirmation
+   13. Start (Worker settings, refresh)
    ========================================================================== */
 
 (function () {
@@ -32,22 +33,17 @@
     // pickup time, so the first slot of the day is at least this long after
     // opening, and today's slots start at least this long from now.
     kitchenLeadMinutes: 20,
-    lastSlotBeforeClose: 15, // last pickup slot = closing time minus this
-    daysAhead: 7,            // when closed, look this far ahead for the next open day
+    lastSlotBeforeClose: 30, // last pickup slot = closing time minus this
+    daysAhead: 14,           // when closed, look this far ahead for the next opening
+    phone: '647-298-2267',
     storageKey: 'tdp-order-cart-v1', // the cart (localStorage: shared by tabs)
     cartMaxAgeHours: 24,             // older saved carts are dropped
     sessionKey: 'tdp-order-session-v1', // this tab's step + pickup (sessionStorage)
-    // Clover hosted card fields: SANDBOX merchant. The public key can only
-    // tokenize cards; the private token never goes in this file. Going live:
-    // the live merchant's public token and ID here, plus the checklist at the
-    // top of worker/index.js.
-    clover: {
-      publicKey: 'b1115fedbe960f0ef8b1fa3b443a3b96',
-      merchantId: '2N9FRNJANSV31',
-    },
   };
 
-  // Hours match the footer. days: 0 = Sunday ... 6 = Saturday.
+  // Same-day pickup only, while the location is open (the Worker enforces
+  // the same rules). Keep in sync with LOCATIONS in worker/index.js.
+  // days: 0 = Sunday ... 6 = Saturday.
   const LOCATIONS = {
     'king-st-w': {
       name: 'King St W',
@@ -57,9 +53,28 @@
     'one-york': {
       name: 'One York',
       address: 'One York Street, 2nd Floor',
-      hours: { days: [1, 2, 3, 4, 5], open: '10:30', close: '18:00' },
+      hours: { days: [1, 2, 3, 4, 5], open: '10:30', close: '19:00' },
     },
   };
+
+  // From the Worker (GET /api/config), loaded at start (section 13):
+  // { environment, sdkUrl, orderingOpen, closedDates, phone,
+  //   stores: { 'one-york': { publicKey, merchantId } } }. Clover's card
+  // fields use the chosen store's public key; nothing secret is in it.
+  // Until it arrives (or if it can't load), nothing can be ordered.
+  let server = null;
+
+  function orderingOn() {
+    return !!(server && server.orderingOpen && Object.keys(server.stores).length);
+  }
+
+  function storeEnabled(id) {
+    return !!(server && Object.prototype.hasOwnProperty.call(server.stores, id) && LOCATIONS[id]);
+  }
+
+  function enabledStores() {
+    return Object.keys(LOCATIONS).filter(storeEnabled);
+  }
 
 
   /* ---- 1. Menu data --------------------------------------------------- */
@@ -549,7 +564,8 @@
     $('[data-subtotal]').textContent = fmt(t.subtotal);
     $('[data-tax]').textContent = fmt(t.tax);
     $('[data-total]').textContent = fmt(t.total);
-    checkoutBtn.disabled = !cart.length;
+    checkoutBtn.disabled = !cart.length || !canOrderNow();
+    renderNotice();
     $('[data-pay]').textContent = 'Pay ' + fmt(t.total);
 
     // Phone order bar: shown once there's something in the cart
@@ -674,7 +690,7 @@
 
   function goTo(step, fromHistory) {
     if (step === 'confirmed' && !confirmed) step = 'menu';
-    if (step !== 'menu' && step !== 'confirmed' && !cart.length) step = 'menu';
+    if (step !== 'menu' && step !== 'confirmed' && (!cart.length || !canOrderNow())) step = 'menu';
     if (step === 'payment' && !pickup) step = 'details';
     const changed = document.body.dataset.step !== step;
     document.body.dataset.step = step;
@@ -770,39 +786,78 @@
       timeZone: CONFIG.timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).formatToParts(new Date()).forEach(function (part) { p[part.type] = part.value; });
-    return { y: +p.year, m: +p.month, d: +p.day, minutes: +p.hour * 60 + +p.minute };
+    const date = new Date(Date.UTC(+p.year, +p.month - 1, +p.day));
+    return { date: date, iso: p.year + '-' + p.month + '-' + p.day, weekday: date.getUTCDay(), minutes: +p.hour * 60 + +p.minute };
   }
 
-  // The first day (today or later) with pickup times left: its slots, and
-  // whether ASAP is on offer (only while the location is open)
-  function pickupDay(location) {
-    const hours = location.hours;
-    const open = toMinutes(hours.open);
-    const close = toMinutes(hours.close);
-    const first = open + CONFIG.kitchenLeadMinutes;
-    const last = close - CONFIG.lastSlotBeforeClose;
+  function closedOn(iso) {
+    return !!server && server.closedDates.indexOf(iso) >= 0;
+  }
+
+  // Is this location taking online orders right now? Ordering on, location
+  // enabled, an open day that isn't a closed date, and between opening and
+  // the last moment an ASAP order is ready by the last slot. (The Worker
+  // checks the same.)
+  function openNow(id, now) {
+    const hours = LOCATIONS[id].hours;
+    return orderingOn() && storeEnabled(id) &&
+      hours.days.indexOf(now.weekday) >= 0 && !closedOn(now.iso) &&
+      now.minutes >= toMinutes(hours.open) &&
+      now.minutes + CONFIG.kitchenLeadMinutes <= toMinutes(hours.close) - CONFIG.lastSlotBeforeClose;
+  }
+
+  function canOrderNow() {
     const now = torontoNow();
+    return enabledStores().some(function (id) { return openNow(id, now); });
+  }
 
+  // Today's pickup times while the location is open, else null: ASAP, and
+  // a slot every 15 minutes from kitchenLeadMinutes from now up to
+  // lastSlotBeforeClose before closing
+  function pickupDay(id) {
+    const now = torontoNow();
+    if (!openNow(id, now)) return null;
+    const step = CONFIG.slotMinutes;
+    const last = toMinutes(LOCATIONS[id].hours.close) - CONFIG.lastSlotBeforeClose;
+    const slots = [];
+    for (let t = Math.ceil((now.minutes + CONFIG.kitchenLeadMinutes) / step) * step; t <= last; t += step) slots.push(t);
+    return { iso: now.iso, asap: true, slots: slots };
+  }
+
+  // When the location next takes orders: 'today at 10:30 AM' or
+  // 'Monday, November 9 at 10:30 AM' (skipping closed dates)
+  function nextOpening(id) {
+    const hours = LOCATIONS[id].hours;
+    const open = toMinutes(hours.open);
+    const now = torontoNow();
     for (let n = 0; n < CONFIG.daysAhead; n++) {
-      const date = new Date(Date.UTC(now.y, now.m - 1, now.d + n));
-      if (hours.days.indexOf(date.getUTCDay()) < 0) continue;
-
-      const earliest = n === 0 ? Math.max(first, now.minutes + CONFIG.kitchenLeadMinutes) : first;
-      const slots = [];
-      for (let t = Math.ceil(earliest / CONFIG.slotMinutes) * CONFIG.slotMinutes; t <= last; t += CONFIG.slotMinutes) {
-        slots.push(t);
-      }
-      const asap = n === 0 && now.minutes >= open && now.minutes + CONFIG.kitchenLeadMinutes <= close;
-      if (slots.length || asap) {
-        return { date: date, today: n === 0, asap: asap, slots: slots };
-      }
+      const date = new Date(now.date.getTime() + n * 86400000);
+      if (hours.days.indexOf(date.getUTCDay()) < 0 || closedOn(date.toISOString().slice(0, 10))) continue;
+      if (n === 0 && now.minutes >= open) continue;
+      return (n === 0 ? 'today' : date.toLocaleDateString('en-CA', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' })) +
+        ' at ' + timeLabel(open);
     }
     return null;
   }
 
-  function dayLabel(day) {
-    if (day.today) return 'Today';
-    return day.date.toLocaleDateString('en-CA', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+  // Why nothing can be ordered right now (paused, or closed with the next
+  // opening), or '' when ordering is open. Shown above the menu.
+  const noticeEl = $('[data-order-notice]');
+
+  function closedMessage() {
+    if (canOrderNow()) return '';
+    if (!orderingOn()) return 'Online ordering is paused, please call ' + CONFIG.phone + '.';
+    const next = enabledStores().map(function (id) {
+      const when = nextOpening(id);
+      return when ? LOCATIONS[id].name + ' opens for online orders ' + when + '.' : '';
+    }).filter(Boolean).join(' ');
+    return 'Online ordering is closed right now. ' + next + ' To order now, please call ' + CONFIG.phone + '.';
+  }
+
+  function renderNotice() {
+    const message = closedMessage();
+    noticeEl.textContent = message;
+    noticeEl.hidden = !message;
   }
 
   const pickupForm = $('[data-pickup-form]');
@@ -825,28 +880,27 @@
       return;
     }
 
-    const day = pickupDay(LOCATIONS[id]);
+    const day = pickupDay(id);
     timeSelect.disabled = !day;
     if (!day) {
+      const when = nextOpening(id);
       timeSelect.innerHTML = '<option value="">No pickup times available</option>';
-      timeHint.textContent = 'Please call us at 647-298-2267.';
+      timeHint.textContent = (when ? 'Online ordering opens ' + when + '. ' : '') + 'Please call us at ' + CONFIG.phone + '.';
       return;
     }
 
-    const iso = day.date.toISOString().slice(0, 10);
-    let html = day.asap ? '<option value="asap">ASAP (about ' + CONFIG.kitchenLeadMinutes + ' minutes)</option>' : '';
+    let html = '<option value="asap">ASAP (about ' + CONFIG.kitchenLeadMinutes + ' minutes)</option>';
     if (day.slots.length) {
-      html += '<optgroup label="' + dayLabel(day) + '">' + day.slots.map(function (t) {
-        return '<option value="' + iso + 'T' + hhmm(t) + '">' + timeLabel(t) + '</option>';
+      html += '<optgroup label="Today">' + day.slots.map(function (t) {
+        return '<option value="' + day.iso + 'T' + hhmm(t) + '">' + timeLabel(t) + '</option>';
       }).join('') + '</optgroup>';
     }
     timeSelect.innerHTML = html;
     if ($all('option', timeSelect).some(function (o) { return o.value === previous; })) timeSelect.value = previous;
 
     const hours = LOCATIONS[id].hours;
-    timeHint.textContent = day.today
-      ? 'Open today ' + timeLabel(toMinutes(hours.open)) + ' to ' + timeLabel(toMinutes(hours.close)) + '.'
-      : 'We’re closed right now. Order ahead for ' + dayLabel(day) + '.';
+    timeHint.textContent = 'Same-day pickup. Open today ' + timeLabel(toMinutes(hours.open)) + ' to ' + timeLabel(toMinutes(hours.close)) +
+      '; last pickup ' + timeLabel(toMinutes(hours.close) - CONFIG.lastSlotBeforeClose) + '.';
   }
 
   pickupForm.addEventListener('change', function (event) {
@@ -855,11 +909,10 @@
 
   // Is this pickup time still on offer? (Slots pass while a page sits open.)
   function pickupStillOffered(details) {
-    const day = details && LOCATIONS[details.location] && pickupDay(LOCATIONS[details.location]);
+    const day = details && LOCATIONS[details.location] && pickupDay(details.location);
     if (!day) return false;
     if (details.asap) return day.asap;
-    const iso = day.date.toISOString().slice(0, 10);
-    return day.slots.some(function (t) { return iso + 'T' + hhmm(t) === details.time; });
+    return day.slots.some(function (t) { return day.iso + 'T' + hhmm(t) === details.time; });
   }
 
   // Back to the pickup step with the time list refreshed and a message
@@ -883,7 +936,7 @@
     if (!values) return;
     pickupForm.elements.name.value = values.name || '';
     pickupForm.elements.phone.value = values.phone || '';
-    const radio = values.location && $('input[name="location"][value="' + values.location + '"]', pickupForm);
+    const radio = storeEnabled(values.location) && $('input[name="location"][value="' + values.location + '"]', pickupForm);
     if (radio) radio.checked = true;
     refreshTimes();
     if (values.time && $all('option', timeSelect).some(function (o) { return o.value === values.time; })) {
@@ -1036,24 +1089,53 @@
   };
 
   let clover = null;
+  let cloverStore = null; // the store whose public key the card fields use
+  let sdk = null;         // Clover's SDK script, loading or loaded
 
-  // Mount the card fields the first time the payment step opens
-  function startClover() {
-    if (clover) return;
-    if (typeof window.Clover !== 'function') {
-      payStatus.textContent = 'Card payment couldn’t load. Check your connection and refresh the page.';
-      payButton.disabled = true;
-      return;
+  // Clover's SDK from the URL the Worker gives (sandbox or production)
+  function loadSdk() {
+    if (!sdk) {
+      sdk = new Promise(function (resolve, reject) {
+        const script = document.createElement('script');
+        script.src = server.sdkUrl;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
     }
-    clover = new window.Clover(CONFIG.clover.publicKey, { merchantId: CONFIG.clover.merchantId });
-    const elements = clover.elements();
-    CARD_FIELDS.forEach(function (field) {
-      const element = elements.create(field.type, CARD_STYLES);
-      element.mount('#' + field.id);
-      // Events report every field's state; show only the errors for fields
-      // the customer has already left
-      element.addEventListener('change', showFieldErrors);
-      element.addEventListener('blur', showFieldErrors);
+    return sdk;
+  }
+
+  // Mount the card fields with the pickup store's public key when the
+  // payment step opens (again if the customer switched stores)
+  function startClover() {
+    const id = pickup.location;
+    if (cloverStore === id) return;
+    cloverStore = id;
+    clover = null;
+    payButton.disabled = true;
+
+    loadSdk().then(function () {
+      const store = server.stores[id];
+      if (typeof window.Clover !== 'function' || !store) throw new Error('no Clover');
+      CARD_FIELDS.forEach(function (field) {
+        $('#' + field.id).innerHTML = '';
+        setFieldError(field, '');
+      });
+      clover = new window.Clover(store.publicKey, { merchantId: store.merchantId });
+      const elements = clover.elements();
+      CARD_FIELDS.forEach(function (field) {
+        const element = elements.create(field.type, CARD_STYLES);
+        element.mount('#' + field.id);
+        // Events report every field's state; show only the errors for fields
+        // the customer has already left
+        element.addEventListener('change', showFieldErrors);
+        element.addEventListener('blur', showFieldErrors);
+      });
+      payButton.disabled = false;
+    }).catch(function () {
+      cloverStore = null;
+      payStatus.textContent = 'Card payment couldn’t load. Check your connection and refresh the page.';
     });
 
     // Clover's script adds a "Secure Payments Powered by Clover" footer to
@@ -1158,7 +1240,7 @@
       }
     }, function () {
       // No answer: the order may or may not have gone through
-      payStatus.textContent = 'We lost the connection before your order was confirmed. Please call us at 647-298-2267 before trying again, so you aren’t charged twice.';
+      payStatus.textContent = 'We lost the connection before your order was confirmed. Please call us at ' + CONFIG.phone + ' before trying again, so you aren’t charged twice.';
     });
   }
 
@@ -1205,15 +1287,13 @@
     $('[data-confirm-tax-label]').textContent = CONFIG.taxLabel;
     $('[data-confirm-tax]').textContent = fmt(c.order.tax);
     $('[data-confirm-total]').textContent = fmt(c.order.total);
-    // SMS PLACEHOLDER: the backend will text this number; nothing is sent yet
-    $('[data-confirm-phone]').textContent = c.pickup.phone;
   }
 
   $('[data-new-order]').addEventListener('click', function () {
     confirmed = null;
     pickup = null;
     pickupForm.reset();
-    refreshTimes();
+    showStores();
     goTo('menu');
   });
 
@@ -1246,13 +1326,52 @@
       return 'confirmed';
     }
 
-    if (saved.pickup && LOCATIONS[saved.pickup.location]) pickup = saved.pickup;
+    if (saved.pickup && storeEnabled(saved.pickup.location)) pickup = saved.pickup;
     if (saved.step === 'payment' && pickup && cart.length && !pickupStillOffered(pickup)) return 'expired';
     return saved.step === 'details' || saved.step === 'payment' ? saved.step : 'menu';
   }
 
-  const startStep = restore();
-  if (startStep === 'expired') pickupExpired(true);
-  else goTo(startStep, true);
-  history.replaceState({ step: document.body.dataset.step }, '');
+  // Only the stores the Worker has enabled can be chosen; with just one,
+  // it's chosen already. The hero line names them.
+  function showStores() {
+    const ids = enabledStores();
+    $all('input[name="location"]', pickupForm).forEach(function (input) {
+      input.closest('.choice').hidden = ids.indexOf(input.value) < 0;
+      if (ids.length === 1 && input.value === ids[0]) input.checked = true;
+      else if (ids.indexOf(input.value) < 0) input.checked = false;
+    });
+    if (ids.length) {
+      $('[data-store-names]').innerHTML = ids.map(function (id) { return esc(LOCATIONS[id].name); }).join(' &middot; ');
+    }
+    refreshTimes();
+  }
+
+  function start(config) {
+    server = config;
+    showStores();
+    if (server) loadSdk().catch(function () { /* reported when the payment step opens */ });
+
+    const startStep = restore();
+    if (startStep === 'expired') pickupExpired(true);
+    else goTo(startStep, true);
+    history.replaceState({ step: document.body.dataset.step }, '');
+
+    // Opening and closing happen while the page sits open
+    setInterval(function () {
+      renderCart();
+      if (document.body.dataset.step === 'details') refreshTimes();
+    }, 60000);
+  }
+
+  // Nothing can be ordered until the Worker's settings arrive; if they
+  // can't load, the page says ordering is paused
+  fetch('/api/config', { cache: 'no-store' }).then(function (response) {
+    if (!response.ok) throw new Error('config ' + response.status);
+    return response.json();
+  }).then(function (config) {
+    if (!config || !config.stores || !Array.isArray(config.closedDates) || !config.sdkUrl) throw new Error('config');
+    return config;
+  }).catch(function () {
+    return null;
+  }).then(start);
 })();
