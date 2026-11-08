@@ -27,22 +27,18 @@
   display: none !important;
 }
 
-/* Always the compact pink bar with the white logo (the other pages start
-   clear and turn pink on scroll) */
+/* Always the compact white bar with the dark logo (the other pages start
+   clear and turn white on scroll) */
 .site-header--solid,
 .site-header--solid.is-scrolled {
   height: var(--header-h-scrolled);
-  color: var(--text);
+  color: var(--darker);
 }
 
 .site-header--solid::before {
   opacity: 1;
-  background: var(--primary);
+  background: var(--white);
   box-shadow: 0 6px 24px rgba(28, 29, 39, 0.12);
-}
-
-.site-header--solid .brand img {
-  filter: brightness(0) invert(1);
 }
 
 @media (max-width: 899px) {
