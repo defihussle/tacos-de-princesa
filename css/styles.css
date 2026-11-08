@@ -462,7 +462,7 @@ p:last-child {
    Logo centred, hamburger on the right at every width; the links live in
    the slide-in panel. Transparent by default so it overlays the hero.
    main.js adds .is-scrolled after a short scroll, which fades in a dark
-   translucent background (the brand pink with .site-header--light).
+   translucent background (white with .site-header--light).
    The background lives on ::before (not the header itself) because
    backdrop-filter on the header would trap the fixed slide-in panel inside it.
    ========================================================================== */
@@ -500,18 +500,10 @@ p:last-child {
 }
 
 /* Home and catering: the header sits on the light wall, so it stays clear
-   with dark ink; once scrolled it becomes a pink bar with a white logo and
-   hamburger. */
+   with dark ink; once scrolled it becomes a white bar, still with the dark
+   logo and hamburger. */
 .site-header--light {
   color: var(--darker);
-}
-
-.site-header--light.is-scrolled {
-  color: var(--text);
-}
-
-.site-header--light.is-scrolled .brand img {
-  filter: brightness(0) invert(1); /* dark logo.png drawn in white */
 }
 
 /* Taller at the top so the logo sits lower; shrinks as usual on scroll.
@@ -522,7 +514,7 @@ p:last-child {
 }
 
 .site-header--light::before {
-  background: var(--primary);
+  background: var(--white);
   box-shadow: 0 6px 24px rgba(28, 29, 39, 0.12);
 }
 
@@ -586,7 +578,7 @@ p:last-child {
   transition: color var(--speed) var(--ease);
 }
 
-/* The open panel is white, so the close (X) is dark, even on the pink bar */
+/* The open panel is white, so the close (X) is dark */
 .site-header .nav-toggle[aria-expanded="true"] {
   color: var(--darker);
 }
