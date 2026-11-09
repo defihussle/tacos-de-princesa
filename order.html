@@ -94,7 +94,11 @@
              Categories and dishes are rendered from the MENU data in
              js/order.js. The chips scroll to each category. -->
         <section class="order-step" data-step-panel="menu" aria-label="Menu">
-          <nav class="order-cats" aria-label="Menu categories" data-cat-nav></nav>
+          <div class="order-cats-row">
+            <button class="order-cats__arrow order-cats__arrow--prev" type="button" aria-label="Scroll categories left" data-cat-scroll="-1" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg></button>
+            <nav class="order-cats" aria-label="Menu categories" data-cat-nav></nav>
+            <button class="order-cats__arrow order-cats__arrow--next" type="button" aria-label="Scroll categories right" data-cat-scroll="1" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7"/></svg></button>
+          </div>
           <div data-menu></div>
           <noscript>
             <p class="order-noscript">Online ordering needs JavaScript. You can also call us at <a href="tel:+16472982267">647-298-2267</a>.</p>

@@ -224,19 +224,23 @@ html:has(.item-dialog[open]) {
 /* ==========================================================================
    4. Category chips (sticky under the header, scroll sideways on phones)
    ========================================================================== */
-.order-cats {
+.order-cats-row {
   position: sticky;
   top: var(--header-h-scrolled);
   z-index: 20;
-  display: flex;
-  gap: 0.5rem;
   margin: -0.5rem -1.25rem 0;
-  padding: 0.85rem 1.25rem;
-  overflow-x: auto;
-  scrollbar-width: none;
   background: rgba(250, 250, 250, 0.94);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
+}
+
+.order-cats {
+  position: relative; /* the chips' offsetLeft is measured from here */
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .order-cats::-webkit-scrollbar {
@@ -249,9 +253,59 @@ html:has(.item-dialog[open]) {
 }
 
 @media (min-width: 900px) {
-  .order-cats {
+  .order-cats-row {
     margin-inline: 0;
+  }
+
+  .order-cats {
     padding-inline: 0;
+  }
+}
+
+/* Arrows for mouse users; touch screens swipe the row instead. js/order.js
+   hides each one when the row can't scroll further that way. */
+.order-cats__arrow {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .order-cats__arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1.5px solid var(--border);
+    border-radius: 50%;
+    background: var(--white);
+    color: var(--text-dark);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition:
+      border-color var(--speed) var(--ease),
+      color var(--speed) var(--ease);
+  }
+
+  .order-cats__arrow:hover {
+    border-color: var(--primary);
+    color: var(--primary-dark);
+  }
+
+  .order-cats__arrow svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .order-cats__arrow--prev {
+    left: 0.25rem;
+  }
+
+  .order-cats__arrow--next {
+    right: 0.25rem;
   }
 }
 

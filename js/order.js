@@ -182,6 +182,14 @@
         { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein.', price: 1300, veg: true },
       ],
     },
+    {
+      id: 'drinks', name: 'Drinks', suffix: '',
+      items: [
+        { id: 'pop', name: 'Pop cans', price: 200 },
+        { id: 'jarritos', name: 'Jarritos', price: 300 },
+        { id: 'water', name: 'Bottled water', price: 250 },
+      ],
+    },
   ];
 
   // Flat lookup: 'tacos/pollo' -> item, with its category's name and groups filled in
@@ -378,6 +386,36 @@
     });
   });
 
+  // Arrows for mouse users (touch screens swipe the row). Each one hides
+  // when the row can't scroll further that way, or fits without scrolling.
+  const catArrows = $all('[data-cat-scroll]');
+
+  function updateCatArrows() {
+    const max = catNav.scrollWidth - catNav.clientWidth;
+    catArrows.forEach(function (arrow) {
+      const hide = Number(arrow.dataset.catScroll) < 0 ? catNav.scrollLeft <= 1 : catNav.scrollLeft >= max - 1;
+      // Keyboard users keep their place when the arrow they're on hides
+      if (hide && document.activeElement === arrow) {
+        catArrows.filter(function (other) { return other !== arrow; })[0].focus();
+      }
+      arrow.hidden = hide;
+    });
+  }
+
+  catArrows.forEach(function (arrow) {
+    arrow.addEventListener('click', function () {
+      catNav.scrollBy({
+        left: Number(arrow.dataset.catScroll) * catNav.clientWidth * 0.7,
+        behavior: reducedMotion.matches ? 'auto' : 'smooth',
+      });
+    });
+  });
+
+  catNav.addEventListener('scroll', updateCatArrows, { passive: true });
+  window.addEventListener('resize', updateCatArrows);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(updateCatArrows);
+  updateCatArrows();
+
   // Scroll spy: the active chip is the last category whose top has passed
   // the sticky chip bar
   let activeCat = -1;
@@ -391,6 +429,9 @@
     catSections.forEach(function (section, i) {
       if (section.getBoundingClientRect().top <= line) index = i;
     });
+    // A short last category can't scroll up to the line, so the bottom of the
+    // page counts as reaching it
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) index = catSections.length - 1;
     if (index !== activeCat) {
       activeCat = index;
       setActiveCat(index);
@@ -724,6 +765,7 @@
       if (step === 'menu') {
         activeCat = -1;
         updateActiveCat();
+        updateCatArrows();
       }
     }
   }

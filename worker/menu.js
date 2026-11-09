@@ -102,6 +102,14 @@ const MENU = [
       { id: 'veggie-chorizo', name: 'Veggie Chorizo', price: 1300 },
     ],
   },
+  {
+    id: 'drinks', suffix: '',
+    items: [
+      { id: 'pop', name: 'Pop cans', price: 200 },
+      { id: 'jarritos', name: 'Jarritos', price: 300 },
+      { id: 'water', name: 'Bottled water', price: 250 },
+    ],
+  },
 ];
 
 // Flat lookup: 'tacos/pollo' -> { price, groups, fullName, nameFrom }
