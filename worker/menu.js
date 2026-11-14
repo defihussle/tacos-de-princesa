@@ -129,11 +129,31 @@ const MENU = [
     ],
   },
   {
+    id: 'sides', suffix: '',
+    items: [
+      { id: 'chips-guac', name: 'Chips & Guac', price: 500 },
+      { id: 'chips-salsa', name: 'Chips & Salsa Verde', price: 400 },
+      { id: 'chips-cheese', name: 'Chips & Cheese', price: 500 },
+      { id: 'large-guac', name: 'Large Guac', price: 600 },
+      { id: 'elotes', name: 'Elotes (Street Corn)', price: 700 },
+      { id: 'rice', name: 'Seasoned Rice', price: 500 },
+      { id: 'fries', name: 'Seasoned Fries', price: 500 },
+    ],
+  },
+  {
+    id: 'desserts', suffix: '',
+    items: [
+      { id: 'churro-1', name: 'Churro (1 pc)', price: 250 },
+      { id: 'churros-3', name: 'Churros (3 pc)', price: 700 },
+    ],
+  },
+  {
     id: 'drinks', suffix: '',
     items: [
       { id: 'pop', name: 'Pop cans', price: 200 },
       { id: 'jarritos', name: 'Jarritos', price: 300 },
       { id: 'water', name: 'Bottled water', price: 250 },
+      { id: 'sparkling', name: 'Sparkling Water', price: 300 },
     ],
   },
 ];
