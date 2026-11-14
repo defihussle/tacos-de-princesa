@@ -8,12 +8,70 @@ themselves are explained at the top of `worker/index.js` and in
 
 ```sh
 node scripts/check-menu.mjs
+CLOVER_TOKEN=<live private token> node scripts/check-clover.mjs
 ```
 
-It must print `Menu check passed`. It compares item keys, prices, option
-groups, option labels and option prices (and the tax rate) between
-`js/order.js` and `worker/menu.js`. A difference means orders get rejected
-or charged differently from what the page shows.
+Both must pass.
+
+- `check-menu` (no network) compares item keys, prices, option groups,
+  option labels and option prices (and the tax rate) between `js/order.js`
+  and `worker/menu.js`, and checks `worker/clover-ids.js` has a production
+  Clover ID for every item and option with matching prices. A difference
+  means orders get rejected or charged differently from what the page shows.
+- `check-clover` (read-only: GET requests only) compares
+  `worker/clover-ids.js` with Clover's live inventory: every ID exists, item
+  prices equal the website's, each modifier's name and price equal what the
+  Worker sends, and each modifier is still in a group attached to that
+  item. Type the token into the command only; never save it in a file.
+  `--env sandbox` checks the sandbox section with a sandbox token;
+  `--file .local/clover-inventory-live.json` checks a saved export instead.
+
+## The menu and Clover's inventory
+
+Clover is the master copy of the menu. Every website dish is a Clover
+inventory item, and every option is a Clover modifier:
+
+- `worker/clover-ids.js` maps each website item key (`tacos/pollo`) to its
+  Clover item ID, and each option (`group|label`, e.g. `guac|Add guacamole`)
+  to its Clover modifier `{ id, name, price }`. One section per Clover
+  account (`production`, `sandbox`); the Worker picks it from `CLOVER_ENV`.
+  Each section belongs to one merchant (One York), so a store on another
+  merchant gets no IDs.
+- Orders send `{ item: { id } }` per dish: Clover fills in the name, price,
+  tax and labels, and the labels send it to the right printer and KDS.
+  Modifiers go as `{ modifier: { id }, name, amount }` because Clover does
+  not fill modifiers in from the ID. The customer's note goes on the line.
+- Website prices equal Clover's. Single Taco is the exception in shape, not
+  in total: the Clover item is $0 and the protein modifier carries the $7.00
+  (`PRICE_ON_OPTION` in `clover-ids.js`).
+- Each dish offers exactly the modifier groups attached to its Clover item
+  (one website group per Clover group), with customer-friendly labels; the
+  Clover name is what's sent.
+- Fails closed: if anything in a cart has no Clover ID for the current
+  environment, the Worker refuses the order ("Online payment isn't set up
+  yet") and logs the missing key. `/api/health` shows `menu.ready` and lists
+  `missingCloverIds`.
+- `docs/clover-mapping.md` is the original mapping and its open questions;
+  `.local/clover-inventory-live.json` (not committed) is a read-only export.
+
+### When the owner changes the menu in Clover
+
+1. Update both menu files the same way: `worker/menu.js` and `js/order.js`
+   (prices, new dishes, option groups and labels).
+2. Update `worker/clover-ids.js` (production, and sandbox if it has IDs):
+   new or changed item IDs, modifier IDs, names and prices.
+3. Run `node scripts/check-menu.mjs` and
+   `CLOVER_TOKEN=... node scripts/check-clover.mjs`; fix until both pass.
+   `check-clover` also warns about mapped items that are hidden, unlabelled
+   or without HST 13%.
+4. Push to `online-ordering` and test on the preview: open the changed
+   dishes, place a sandbox order, check `/api/health` shows `menu.ready`.
+5. Only then merge to main.
+
+A price changed only in Clover makes Clover's total differ from the
+website's; the Worker then refuses to charge ("We couldn't price your
+order") rather than charging a different amount, so run `check-clover`
+after every change in Clover.
 
 ## Where each deployment gets its settings
 
@@ -49,7 +107,8 @@ team can open it.
 
 1. Clover (live merchant, One York): Ecommerce API token ("Hosted iFrame +
    API/SDK") for the public and private keys; HST 13% tax rate; an "Online
-   Pickup" order type. Merchant currency must be CAD.
+   Pickup" order type. Merchant currency must be CAD. Run
+   `check-clover.mjs` (above): every website dish must be linked.
 2. `wrangler.toml` `[vars]`: `CLOVER_ENV = "production"`,
    `CLOVER_CURRENCY = "cad"`, live `CLOVER_MERCHANT_ID`,
    `CLOVER_PUBLIC_KEY`, `CLOVER_TAX_RATE_ID`, `CLOVER_ORDER_TYPE_ID`

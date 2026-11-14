@@ -83,25 +83,45 @@
     return { label: label, price: price || 0, none: !!none };
   }
 
+  function opts(labels) {
+    return labels.map(function (label) { return opt(label); });
+  }
+
   const TACO_FILLINGS = ['Pollo', 'Carne Asada', 'Barbacoa', 'Surf + Turf', 'Pescado', 'Camarón', 'Veggie Chorizo'];
 
-  // Option groups, used by key in MENU below. 'one' = pick exactly one (the
-  // first is preselected); 'many' = pick any. Options marked none (e.g.
-  // "No protein") are left off the cart line.
-  // PLACEHOLDERS until the kitchen confirms them: 'prep' and 'dressing'.
+  // Option groups, used by key in MENU below. Clover is the master copy: each
+  // group is one Clover modifier group (Clover's name in the comment) and
+  // each dish offers the groups on its Clover item. worker/clover-ids.js
+  // says which Clover modifier each option sends.
+  // 'one' = pick exactly one (the first is preselected); 'many' = pick any.
+  // Options marked none (e.g. "No protein") are left off the cart line.
+  const LEAVE_OFF = 'Leave off';
   const GROUPS = {
-    prep: { title: 'Make it your way', type: 'many', options: [opt('No onions'), opt('No cilantro'), opt('Extra cilantro'), opt('Salsa on the side')] },
-    extraBirria: { title: 'Extras', type: 'many', options: [opt('Extra birria taco', 500)] },
-    tacoExtras: { title: 'Extras', type: 'many', options: [opt('Extra taco', 400), opt('Add cheese', 100)] },
-    filling: { title: 'Choose your taco', type: 'one', options: TACO_FILLINGS.map(function (n) { return opt(n); }) },
-    guac: { title: 'Extras', type: 'many', options: [opt('Add guacamole', 300)] },
-    dressing: { title: 'Dressing', type: 'one', options: [opt('House vinaigrette'), opt('Cilantro lime'), opt('Chipotle ranch')] },
-    protein: { title: 'Add a protein', type: 'one', options: [opt('No protein', 0, true), opt('Pollo', 400), opt('Carne Asada', 500), opt('Pescado', 500), opt('Camarón', 600), opt('Veggie Chorizo', 500), opt('Surf + Turf', 800)] },
-    base: { title: 'Nachos or fries', type: 'one', options: [opt('Nachos'), opt('Fries')] },
+    filling: { title: 'Choose your taco', type: 'one', options: opts(TACO_FILLINGS) },        // Protein (Single Taco)
+    base: { title: 'Nachos or fries', type: 'one', options: opts(['Nachos', 'Fries']) },      // Nachos/Fries
+    dressing: { title: 'Dressing', type: 'one', options: opts(['Honey Dijon', 'Avocado poblano', 'Ranch', 'Balsamic vinaigrette']) }, // Salad Dressing
+    protein: { title: 'Add a protein', type: 'one', options: [opt('No protein', 0, true), opt('Pollo', 400), opt('Carne Asada', 500), opt('Pescado', 500), opt('Camarón', 600), opt('Veggie Chorizo', 500), opt('Surf + Turf', 800)] }, // Salad Add Ons
+    extraBirria: { title: 'Extras', type: 'many', options: [opt('Extra birria taco', 500), opt('Extra consommé', 100)] }, // Add Extra Birria
+    tacoExtras: { title: 'Extras', type: 'many', options: [opt('Extra taco', 400), opt('Add cheese', 100)] },              // Taco Extras
+    guac: { title: 'Guacamole', type: 'many', options: [opt('Add guacamole', 300)] },          // Add Guacamole
+    guacQ: { title: 'Guacamole', type: 'many', options: [opt('Add guacamole', 300)] },         // Add Q (quesadillas)
+    hotSauce: { title: 'Hot sauce', type: 'many', options: opts(['Hot sauce on the side']) },  // Hot Sauce
+    remove: { title: LEAVE_OFF, type: 'many', options: opts(['No onions', 'No cilantro', 'No Princesa sauce']) },                                  // Remove
+    remove1: { title: LEAVE_OFF, type: 'many', options: opts(['No red cabbage', 'No onions', 'No cilantro', 'No Princesa sauce', 'No tomato']) },  // Remove 1
+    remove2: { title: LEAVE_OFF, type: 'many', options: opts(['No onions', 'No cilantro', 'No tomato', 'No Princesa sauce']) },                   // Remove 2
+    remove3: { title: LEAVE_OFF, type: 'many', options: opts(['No cheese', 'No cilantro', 'No onions']) },                                          // Remove 3
+    remove4: { title: LEAVE_OFF, type: 'many', options: opts(['No onions', 'No peppers']) },                                                        // Remove 4
+    remove5: { title: LEAVE_OFF, type: 'many', options: opts(['No green onions', 'No tomato', 'No sour cream', 'No cheese sauce']) },               // Remove 5
+    toppings: { title: LEAVE_OFF, type: 'many', options: opts(['No rice', 'No lettuce', 'No cheese', 'No corn', 'No beans', 'No onions', 'No tomatoes', 'No green onions', 'No bell peppers', 'No salsa verde', 'No sour cream', 'No Princesa sauce', 'No cilantro']) }, // Toppings
+    saladFiesta: { title: LEAVE_OFF, type: 'many', options: opts(['No arugula', 'No mango', 'No avocado', 'No bell peppers', 'No cherry tomatoes', 'No red onions', 'No cotija cheese']) }, // Salad Mod Fiesta
+    saladSantaFe: { title: LEAVE_OFF, type: 'many', options: opts(['No lettuce', 'No black beans', 'No corn', 'No red onions', 'No cherry tomatoes', 'No tortilla strips']) },        // Salad Mod Sante Fe
+    saladQuinoa: { title: LEAVE_OFF, type: 'many', options: opts(['No kale', 'No quinoa', 'No corn', 'No pickled onions', 'No bell peppers', 'No jalapeños']) },                     // Salad Mod Quinoa
+    saladPineapple: { title: LEAVE_OFF, type: 'many', options: opts(['No mixed greens', 'No pineapple', 'No black beans', 'No bell peppers', 'No cilantro']) },                     // Salad Mod Pineapple
   };
 
+  // Mix & Match: three picks, all from Clover's "Choose any 3 Tacos"
   ['1', '2', '3'].forEach(function (n) {
-    GROUPS['mix' + n] = { title: 'Taco ' + n, type: 'one', options: ['Birria'].concat(TACO_FILLINGS).map(function (f) { return opt(f); }) };
+    GROUPS['mix' + n] = { title: 'Taco ' + n, type: 'one', options: opts(['Birria'].concat(TACO_FILLINGS)) };
   });
 
   // Burritos and Bowls: same fillings and prices (a fresh copy each, since
@@ -111,58 +131,59 @@
       { id: 'pollo', name: 'Pollo', desc: 'Chicken.', price: 1500 },
       { id: 'carne-asada', name: 'Carne Asada', desc: 'Steak.', price: 1600 },
       { id: 'barbacoa', name: 'Barbacoa', desc: 'Pulled beef.', price: 1700 },
-      { id: 'surf-turf', name: 'Surf + Turf', desc: 'Shrimp and steak.', price: 1800 },
+      { id: 'surf-turf', name: 'Surf + Turf', desc: 'Shrimp and steak.', price: 1900 },
       { id: 'pescado', name: 'Pescado', desc: 'Fish.', price: 1600 },
       { id: 'camaron', name: 'Camarón', desc: 'Shrimp.', price: 1700 },
       { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein.', price: 1600, veg: true },
     ];
   }
 
-  // Prices match the menu on index.html (One York TV menu, Nov 2026).
+  // Prices match the Clover items (the master copy).
   // suffix names the dish in the cart ("Pollo" + "Burrito"); nameFrom adds
   // that group's choice to the name instead ("Pollo Loaded" + "Fries").
-  // groups apply to every item in the category unless the item lists its own.
+  // groups apply to every item in the category unless the item lists its own
+  // (they're the groups on each Clover item, so they can differ by dish).
   const MENU = [
     {
       id: 'birria', name: 'Birria Tacos', note: 'Pulled brisket with onions + cilantro', suffix: '',
       items: [
-        { id: 'birria-tacos', name: 'Birria Tacos', desc: 'Three tacos of pulled brisket with onions and cilantro.', price: 1900, tag: 'Signature', groups: ['extraBirria', 'prep'] },
-        { id: 'single-birria', name: 'Single Birria', desc: 'One birria taco with onions and cilantro.', price: 700, groups: ['prep'] },
-        { id: 'mix-match', name: 'Mix & Match', desc: 'Any 3 tacos, birria included.', price: 2000, groups: ['mix1', 'mix2', 'mix3', 'prep'] },
+        { id: 'birria-tacos', name: 'Birria Tacos', desc: 'Three tacos of pulled brisket with onions and cilantro.', price: 1900, tag: 'Signature', groups: ['extraBirria', 'hotSauce', 'remove3'] },
+        { id: 'single-birria', name: 'Single Birria', desc: 'One birria taco with onions and cilantro.', price: 700, groups: ['hotSauce', 'remove3'] },
+        { id: 'mix-match', name: 'Mix & Match', desc: 'Any 3 tacos, birria included.', price: 2000, groups: ['mix1', 'mix2', 'mix3', 'guac', 'hotSauce', 'remove1'] },
       ],
     },
     {
-      id: 'tacos', name: 'Tacos', note: '3 tacos served with salsa verde + chipotle crema', suffix: 'Tacos', groups: ['tacoExtras', 'prep'],
+      id: 'tacos', name: 'Tacos', note: '3 tacos served with salsa verde + chipotle crema', suffix: 'Tacos',
       items: [
-        { id: 'pollo', name: 'Pollo', desc: 'Chicken, onions, tomatoes, cilantro.', price: 1500 },
-        { id: 'carne-asada', name: 'Carne Asada', desc: 'Steak, onions, cilantro.', price: 1600 },
-        { id: 'barbacoa', name: 'Barbacoa', desc: 'Pulled beef, onions, cilantro.', price: 1700 },
-        { id: 'surf-turf', name: 'Surf + Turf', desc: 'Shrimp, steak, onions, cilantro.', price: 1800 },
-        { id: 'pescado', name: 'Pescado', desc: 'Fish, red cabbage, onions, tomatoes, cilantro.', price: 1600 },
-        { id: 'camaron', name: 'Camarón', desc: 'Shrimp, red cabbage, onions, tomatoes, cilantro.', price: 1700 },
-        { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein, tomatoes, bell peppers, onions, cilantro.', price: 1600, veg: true },
-        { id: 'single-taco', name: 'Single Taco', fullName: 'Single Taco', desc: 'One taco, any filling.', price: 700, groups: ['filling', 'prep'] },
+        { id: 'pollo', name: 'Pollo', desc: 'Chicken, onions, tomatoes, cilantro.', price: 1500, groups: ['tacoExtras', 'guac', 'hotSauce', 'remove2'] },
+        { id: 'carne-asada', name: 'Carne Asada', desc: 'Steak, onions, cilantro.', price: 1600, groups: ['tacoExtras', 'guac', 'hotSauce', 'remove'] },
+        { id: 'barbacoa', name: 'Barbacoa', desc: 'Pulled beef, onions, cilantro.', price: 1700, groups: ['tacoExtras', 'guac', 'hotSauce', 'remove'] },
+        { id: 'surf-turf', name: 'Surf + Turf', desc: 'Shrimp, steak, onions, cilantro.', price: 1800, groups: ['tacoExtras', 'guac', 'hotSauce'] },
+        { id: 'pescado', name: 'Pescado', desc: 'Fish, red cabbage, onions, tomatoes, cilantro.', price: 1600, groups: ['tacoExtras', 'guac', 'hotSauce', 'remove1'] },
+        { id: 'camaron', name: 'Camarón', desc: 'Shrimp, red cabbage, onions, tomatoes, cilantro.', price: 1700, groups: ['tacoExtras', 'guac', 'hotSauce', 'remove1'] },
+        { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein, tomatoes, bell peppers, onions, cilantro.', price: 1600, veg: true, groups: ['tacoExtras', 'guac', 'hotSauce', 'remove'] },
+        { id: 'single-taco', name: 'Single Taco', fullName: 'Single Taco', desc: 'One taco, any filling.', price: 700, groups: ['filling', 'guac', 'hotSauce'] },
       ],
     },
     {
-      id: 'burritos', name: 'Burritos', note: 'Wrapped, with all the toppings', suffix: 'Burrito', groups: ['guac', 'prep'],
+      id: 'burritos', name: 'Burritos', note: 'Wrapped, with all the toppings', suffix: 'Burrito', groups: ['guac', 'hotSauce', 'toppings'],
       items: burritoFillings(),
     },
     {
-      id: 'bowls', name: 'Bowls', note: 'Everything in a burrito, in a bowl', suffix: 'Bowl', groups: ['guac', 'prep'],
+      id: 'bowls', name: 'Bowls', note: 'Everything in a burrito, in a bowl', suffix: 'Bowl', groups: ['guac', 'toppings'],
       items: burritoFillings(),
     },
     {
-      id: 'ensaladas', name: 'Ensaladas', note: 'With your choice of dressing', suffix: 'Ensalada', groups: ['dressing', 'protein', 'prep'],
+      id: 'ensaladas', name: 'Ensaladas', note: 'With your choice of dressing', suffix: 'Ensalada',
       items: [
-        { id: 'fiesta', name: 'Fiesta', desc: 'Arugula, mango, avocado, bell peppers, cherry tomatoes, red onions, cotija cheese, almonds.', price: 1200 },
-        { id: 'santa-fe', name: 'Santa Fe', desc: 'Lettuce, black beans, corn, red onions, cherry tomatoes, tortilla strips.', price: 1200 },
-        { id: 'quinoa', name: 'Jalapeño Lime Quinoa', desc: 'Kale, quinoa, corn, black beans, pickled onions, bell peppers, jalapeños, cilantro, pumpkin seeds.', price: 1200 },
-        { id: 'pineapple', name: 'Charred Pineapple & Bean', desc: 'Mixed greens, pineapple, black beans, corn, peppers, cilantro, cashews.', price: 1200 },
+        { id: 'fiesta', name: 'Fiesta', desc: 'Arugula, mango, avocado, bell peppers, cherry tomatoes, red onions, cotija cheese, almonds.', price: 1200, groups: ['dressing', 'protein', 'saladFiesta'] },
+        { id: 'santa-fe', name: 'Santa Fe', desc: 'Lettuce, black beans, corn, red onions, cherry tomatoes, tortilla strips.', price: 1200, groups: ['dressing', 'protein', 'saladSantaFe'] },
+        { id: 'quinoa', name: 'Jalapeño Lime Quinoa', desc: 'Kale, quinoa, corn, black beans, pickled onions, bell peppers, jalapeños, cilantro, pumpkin seeds.', price: 1200, groups: ['dressing', 'protein', 'saladQuinoa'] },
+        { id: 'pineapple', name: 'Charred Pineapple & Bean', desc: 'Mixed greens, pineapple, black beans, corn, peppers, cilantro, cashews.', price: 1200, groups: ['dressing', 'protein', 'saladPineapple'] },
       ],
     },
     {
-      id: 'quesadillas', name: 'Quesadillas', note: 'Cheese, onions + peppers', suffix: 'Quesadilla', groups: ['prep'],
+      id: 'quesadillas', name: 'Quesadillas', note: 'Cheese, onions + peppers', suffix: 'Quesadilla', groups: ['guacQ', 'hotSauce', 'remove4'],
       items: [
         { id: 'classic', name: 'Classic', desc: 'Cheese.', price: 1400, veg: true },
         { id: 'pollo', name: 'Pollo', desc: 'Chicken.', price: 1500 },
@@ -174,12 +195,12 @@
       ],
     },
     {
-      id: 'nachos', name: 'Nachos & Fries', note: 'Cheese, tomatoes, green onions + sour cream', suffix: 'Loaded', nameFrom: 'base', groups: ['base', 'prep'],
+      id: 'nachos', name: 'Nachos & Fries', note: 'Cheese, tomatoes, green onions + sour cream', suffix: 'Loaded', nameFrom: 'base', groups: ['base', 'hotSauce', 'remove5'],
       items: [
         { id: 'classic', name: 'Classic', desc: 'Cheese.', price: 1000, veg: true },
         { id: 'pollo', name: 'Pollo', desc: 'Chicken.', price: 1200 },
         { id: 'carne-asada', name: 'Carne Asada', desc: 'Beef.', price: 1300 },
-        { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein.', price: 1300, veg: true },
+        { id: 'veggie-chorizo', name: 'Veggie Chorizo', desc: 'Plant-based protein.', price: 1300, veg: true, groups: ['base', 'remove5'] }, // no Hot Sauce group in Clover
       ],
     },
     {

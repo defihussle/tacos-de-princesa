@@ -1,0 +1,201 @@
+/* ==========================================================================
+   Tacos De Princesa — worker/clover-ids.js
+   Which Clover inventory item and modifier each website dish and option is.
+   Clover is the master copy: an order line is sent as { item: { id } } and
+   Clover fills in the name, price, tax and labels (the labels send it to the
+   right printer and KDS). Modifiers are sent as { modifier: { id }, name,
+   amount }, using the name and price below, because Clover does NOT fill
+   modifiers in from the ID.
+
+   One section per Clover account (IDs differ between them); the Worker picks
+   it from CLOVER_ENV. Each section is for one merchant: a store whose
+   CLOVER_MERCHANT_ID is different gets no IDs, and its orders are refused.
+
+     items:   website item key ('tacos/pollo')     -> Clover item ID
+     options: website group + '|' + option label  -> { id, name, price } of
+              the Clover modifier (name and price exactly as in Clover), or
+              null for a choice that sends no modifier ("No protein")
+
+   Prices: a website item costs the same as its Clover item, and an option
+   the same as its modifier, except Single Taco: in Clover the item is $0 and
+   the protein modifier carries the $7.00, so on the website the dish is
+   $7.00 and its fillings are free (PRICE_ON_OPTION below).
+
+   Production was generated from the live inventory (docs/clover-mapping.md).
+   After any menu change in Clover: update this file and both menu files
+   (worker/menu.js, js/order.js), then run
+     node scripts/check-menu.mjs     (website and IDs agree, no network)
+     node scripts/check-clover.mjs   (IDs, names and prices agree with Clover)
+   ========================================================================== */
+
+// Website items whose price sits on one option group's Clover modifier
+export const PRICE_ON_OPTION = { 'tacos/single-taco': 'filling' };
+
+export const CLOVER_IDS = {
+  production: {
+    merchantId: '7Z068VHSYD2K1', // One York
+    items: {
+      'birria/birria-tacos': 'HVCMBM6P57WC6',
+      'birria/single-birria': 'ANXM6M20VQCD0',
+      'birria/mix-match': '80EBM56YNQBYM',
+      'tacos/pollo': '6P83JWVFX9B72',
+      'tacos/carne-asada': '08WMRP7YD5XSM',
+      'tacos/barbacoa': 'FGHVZZNJ0F4QW',
+      'tacos/surf-turf': '7Q64A1YK9SXGE',
+      'tacos/pescado': 'BX1PWEWD80X1C',
+      'tacos/camaron': '6VKABKTR5WS78',
+      'tacos/veggie-chorizo': '47XEY2VZYWBVY',
+      'tacos/single-taco': '9AQ21XEGDYWBY',
+      'burritos/pollo': 'D5T388DSFMYSW',
+      'burritos/carne-asada': 'XV3607W2QKM10',
+      'burritos/barbacoa': 'BFPYPB2K5R6Z8',
+      'burritos/surf-turf': 'BVZNGBP7W37CR',
+      'burritos/pescado': 'TNJMC572CNVX8',
+      'burritos/camaron': 'GYCDPRGZEMKEE',
+      'burritos/veggie-chorizo': 'QX7E9QPWYT5PR',
+      'bowls/pollo': '78PTDPYY9DYHR',
+      'bowls/carne-asada': '37FNF9XYPQJ2A',
+      'bowls/barbacoa': 'HYZZTZ6G46NK6',
+      'bowls/surf-turf': 'QC7B0WM6QBR4J',
+      'bowls/pescado': 'PJC56NWFK00FY',
+      'bowls/camaron': 'GCQTQ22754ZC8',
+      'bowls/veggie-chorizo': '2AWQT5N9PTD5G',
+      'ensaladas/fiesta': 'DK7BB0E0QSKQT',
+      'ensaladas/santa-fe': 'X8PM7BZX78W3A',
+      'ensaladas/quinoa': '4HVV3E0Z8HAHA',
+      'ensaladas/pineapple': '648YKG44QSRRA',
+      'quesadillas/classic': 'KB22WCWP9Y0YY',
+      'quesadillas/pollo': '7YEFVPYW0F17P',
+      'quesadillas/carne-asada': 'N9VY576RS97XJ',
+      'quesadillas/barbacoa': 'WRSKH2XR7XTGP',
+      'quesadillas/surf-turf': 'WJQEPN4P8X3CT',
+      'quesadillas/camaron': 'MVKZQ4EFQJ5KE',
+      'quesadillas/veggie-chorizo': '8KSKE1T3K8PVM',
+      'nachos/classic': '75NRH4AZJTE6Y',
+      'nachos/pollo': 'BKJY8DK8Z6S3W',
+      'nachos/carne-asada': '04F01FF1G823Y',
+      'nachos/veggie-chorizo': 'CQKN9MSYXW8Y6',
+      'drinks/pop': 'KFWV5N1TC8NNJ',
+      'drinks/jarritos': 'WRV4KR7H5MES6',
+      'drinks/water': 'TBXZTE67GX7FM',
+    },
+    options: {
+      'filling|Pollo': { id: '5R5E5XCMX8Z0J', name: 'Chicken', price: 700 },
+      'filling|Carne Asada': { id: 'FQ3WRTH15YAMY', name: 'Steak', price: 700 },
+      'filling|Barbacoa': { id: 'MRQ9QXAW19F2J', name: 'Pulled Beef', price: 700 },
+      'filling|Surf + Turf': { id: '2Q09E1RRF0E5W', name: 'Surt And Turf', price: 700 },
+      'filling|Pescado': { id: 'DWW3PVEYA2V0C', name: 'Fish', price: 700 },
+      'filling|Camarón': { id: 'WS092RSBMFDBW', name: 'Shrimp', price: 700 },
+      'filling|Veggie Chorizo': { id: 'VEWB30XBE75BP', name: 'Chorizo', price: 700 },
+      'mix1|Birria': { id: 'X1YB8B278BFNT', name: 'Biria Taco', price: 0 },
+      'mix2|Birria': { id: 'X1YB8B278BFNT', name: 'Biria Taco', price: 0 },
+      'mix3|Birria': { id: 'X1YB8B278BFNT', name: 'Biria Taco', price: 0 },
+      'mix1|Pollo': { id: 'X3NZ20KM8A71W', name: 'Pollo Tacos', price: 0 },
+      'mix2|Pollo': { id: 'X3NZ20KM8A71W', name: 'Pollo Tacos', price: 0 },
+      'mix3|Pollo': { id: 'X3NZ20KM8A71W', name: 'Pollo Tacos', price: 0 },
+      'mix1|Carne Asada': { id: 'AHAKXQKX9FBRT', name: 'Carne Asada Tacos', price: 0 },
+      'mix2|Carne Asada': { id: 'AHAKXQKX9FBRT', name: 'Carne Asada Tacos', price: 0 },
+      'mix3|Carne Asada': { id: 'AHAKXQKX9FBRT', name: 'Carne Asada Tacos', price: 0 },
+      'mix1|Barbacoa': { id: 'X56KB467D95SP', name: 'Barbacoa Tacos', price: 0 },
+      'mix2|Barbacoa': { id: 'X56KB467D95SP', name: 'Barbacoa Tacos', price: 0 },
+      'mix3|Barbacoa': { id: 'X56KB467D95SP', name: 'Barbacoa Tacos', price: 0 },
+      'mix1|Surf + Turf': { id: 'BNCTBNCATVMAW', name: 'Surf + Turf Tacos', price: 0 },
+      'mix2|Surf + Turf': { id: 'BNCTBNCATVMAW', name: 'Surf + Turf Tacos', price: 0 },
+      'mix3|Surf + Turf': { id: 'BNCTBNCATVMAW', name: 'Surf + Turf Tacos', price: 0 },
+      'mix1|Pescado': { id: 'TA290PHZHZNWG', name: 'Pescado Tacos', price: 0 },
+      'mix2|Pescado': { id: 'TA290PHZHZNWG', name: 'Pescado Tacos', price: 0 },
+      'mix3|Pescado': { id: 'TA290PHZHZNWG', name: 'Pescado Tacos', price: 0 },
+      'mix1|Camarón': { id: '71AEYQ0TMC6TT', name: 'Camarón Tacos', price: 0 },
+      'mix2|Camarón': { id: '71AEYQ0TMC6TT', name: 'Camarón Tacos', price: 0 },
+      'mix3|Camarón': { id: '71AEYQ0TMC6TT', name: 'Camarón Tacos', price: 0 },
+      'mix1|Veggie Chorizo': { id: '89KFEWEYTQCS4', name: 'Vegano Chorizo Tacos', price: 0 },
+      'mix2|Veggie Chorizo': { id: '89KFEWEYTQCS4', name: 'Vegano Chorizo Tacos', price: 0 },
+      'mix3|Veggie Chorizo': { id: '89KFEWEYTQCS4', name: 'Vegano Chorizo Tacos', price: 0 },
+      'base|Nachos': { id: 'ZKAX88PB1JDEY', name: 'Nachos', price: 0 },
+      'base|Fries': { id: 'K00VYBWJ2CXDP', name: 'Fries', price: 0 },
+      'dressing|Honey Dijon': { id: 'B6FS49R7WGGYP', name: 'Honey Dijon', price: 0 },
+      'dressing|Avocado poblano': { id: 'QFNERNV95TREC', name: 'Avocado Poblano Dressing', price: 0 },
+      'dressing|Ranch': { id: 'Y2JNFT9T64T8C', name: 'Ranch', price: 0 },
+      'dressing|Balsamic vinaigrette': { id: 'RCSNBBY665E9A', name: 'Balsamic Vinaigrette', price: 0 },
+      'protein|No protein': null,
+      'protein|Pollo': { id: '0SNFT3DEC2FJW', name: 'Pollo', price: 400 },
+      'protein|Carne Asada': { id: 'M96VH2WXKRZJY', name: 'Carne Asada', price: 500 },
+      'protein|Pescado': { id: '7FBVVVE67N0RG', name: 'Pescado', price: 500 },
+      'protein|Camarón': { id: '5WY2GFBEB97PG', name: 'Camaron', price: 600 },
+      'protein|Veggie Chorizo': { id: '2V59XJ46XNWMT', name: 'Vegano Chorizo', price: 500 },
+      'protein|Surf + Turf': { id: 'DGFX59JRSTK2C', name: 'Surf + Turf', price: 800 },
+      'extraBirria|Extra birria taco': { id: '0G42Q6996SM26', name: 'Extra Birria', price: 500 },
+      'extraBirria|Extra consommé': { id: 'C0JHFFJ5TFBSY', name: 'Extra Consomme', price: 100 },
+      'tacoExtras|Extra taco': { id: 'KT15RB5CJW570', name: 'Extra Taco', price: 400 },
+      'tacoExtras|Add cheese': { id: 'KB7J6RBZV4V3T', name: 'Add Cheese', price: 100 },
+      'guac|Add guacamole': { id: 'RZY1DV6QP3FNE', name: 'Add Guacamole', price: 300 },
+      'guacQ|Add guacamole': { id: '38QBGGJXAMR06', name: 'Add Guacamole', price: 300 },
+      'hotSauce|Hot sauce on the side': { id: '5MYRB43X1V8FJ', name: 'Hot Sauce On The Side', price: 0 },
+      'remove|No onions': { id: '90SZY4XWEV5H0', name: 'No Onion', price: 0 },
+      'remove|No cilantro': { id: 'FA06AB5GDGMXY', name: 'No Cilantro', price: 0 },
+      'remove|No Princesa sauce': { id: 'ECZ9EJ3B2T8CJ', name: 'No Princesa Sauce', price: 0 },
+      'remove1|No red cabbage': { id: 'D27PPZZX341PR', name: 'No Red Cabbage', price: 0 },
+      'remove1|No onions': { id: 'MPM2M5QS7WMDJ', name: 'No Onion', price: 0 },
+      'remove1|No cilantro': { id: '4JDKV6ZZRADBJ', name: 'No Cilantro', price: 0 },
+      'remove1|No Princesa sauce': { id: 'M85ZVW5S0N124', name: 'No Princesa Sauce', price: 0 },
+      'remove1|No tomato': { id: 'Z3CRWQQEBR642', name: 'No Tomato', price: 0 },
+      'remove2|No onions': { id: 'G9H5KA5ZY9ZXP', name: 'No Onion', price: 0 },
+      'remove2|No cilantro': { id: 'WSAQ3RZZA3Y02', name: 'No Cilantro', price: 0 },
+      'remove2|No tomato': { id: '15148ANDW2C9J', name: 'No Tomato', price: 0 },
+      'remove2|No Princesa sauce': { id: 'XZT35JC8092VC', name: 'No Princesa Sauce', price: 0 },
+      'remove3|No cheese': { id: '5Z9JZF1ADSMNE', name: 'No Cheese', price: 0 },
+      'remove3|No cilantro': { id: 'DTXZ3YWJW8XF0', name: 'No Cilantro', price: 0 },
+      'remove3|No onions': { id: 'MRCM3M9E4TF4W', name: 'No Onion', price: 0 },
+      'remove4|No onions': { id: 'S93NVEBM3MDT6', name: 'No Onion', price: 0 },
+      'remove4|No peppers': { id: '4ZA2PX1CCFBZP', name: 'No Peppers', price: 0 },
+      'remove5|No green onions': { id: 'N095Q1PG0E3B8', name: 'No Green Onion', price: 0 },
+      'remove5|No tomato': { id: 'AZM285KNRKRPM', name: 'No Tomato', price: 0 },
+      'remove5|No sour cream': { id: 'S9N6GVPTEY24R', name: 'No Sour Cream', price: 0 },
+      'remove5|No cheese sauce': { id: 'XMKXFBRC826QA', name: 'No Cheese Sauce', price: 0 },
+      'toppings|No rice': { id: 'V8YGE85S4BG1Y', name: 'Remove Rice', price: 0 },
+      'toppings|No lettuce': { id: '39NYF2EJW9SQM', name: 'Remove Lettuce', price: 0 },
+      'toppings|No cheese': { id: 'AMJZM05HHQ4NY', name: 'Remove Cheese', price: 0 },
+      'toppings|No corn': { id: '7XBPJ8EZH2T3E', name: 'Remove Corn', price: 0 },
+      'toppings|No beans': { id: '10F4JZ8M0MRRP', name: 'Remove Beans', price: 0 },
+      'toppings|No onions': { id: 'FC2RETTV1CHNM', name: 'Remove Onions', price: 0 },
+      'toppings|No tomatoes': { id: 'BJ3P9MCHNS8NR', name: 'Remove Tomatoes', price: 0 },
+      'toppings|No green onions': { id: '0EM4VFT200FH2', name: 'Remove Green Onion', price: 0 },
+      'toppings|No bell peppers': { id: 'RTDKAG8V1G6BR', name: 'Remove Bell Pepper', price: 0 },
+      'toppings|No salsa verde': { id: 'MHVBQ7S00NDQA', name: 'Remove Salsa Verde', price: 0 },
+      'toppings|No sour cream': { id: 'Z7Y34F5DMA5JG', name: 'Remove Sour Cream', price: 0 },
+      'toppings|No Princesa sauce': { id: 'HG16EB3SK9W44', name: 'Remove Princesa Sauce', price: 0 },
+      'toppings|No cilantro': { id: 'CFSE0ZC5KK402', name: 'Remove Cilantro', price: 0 },
+      'saladFiesta|No arugula': { id: 'N3ASM8NKF7YT6', name: 'Remove Arugula', price: 0 },
+      'saladFiesta|No mango': { id: 'KQ7RPHXGWQ49C', name: 'Remove Mango', price: 0 },
+      'saladFiesta|No avocado': { id: 'KYED08F27JZ4J', name: 'Remove Avocado', price: 0 },
+      'saladFiesta|No bell peppers': { id: '1FJYA9XZS8X5W', name: 'Remove Bell Peppers', price: 0 },
+      'saladFiesta|No cherry tomatoes': { id: 'TWXYXRA4TJASE', name: 'Remove Cherry Tomatos', price: 0 },
+      'saladFiesta|No red onions': { id: 'A6BN18ARXMDK4', name: 'Remove Red Onions', price: 0 },
+      'saladFiesta|No cotija cheese': { id: 'A01PJ8DVXJJD2', name: 'Remove Cotija Cheese', price: 0 },
+      'saladSantaFe|No lettuce': { id: '2T9HY0YXRB3AR', name: 'Remove Lettuce', price: 0 },
+      'saladSantaFe|No black beans': { id: 'CQW3EEVAVHXXJ', name: 'Remove Black bean', price: 0 },
+      'saladSantaFe|No corn': { id: 'VTTYZRPSGQKMM', name: 'Remove Corn', price: 0 },
+      'saladSantaFe|No red onions': { id: '4B5PDRXM3ZZ5T', name: 'Remove Red Onions', price: 0 },
+      'saladSantaFe|No cherry tomatoes': { id: 'MNF00AGY1XA2Y', name: 'Remove Cherry Tomatos', price: 0 },
+      'saladSantaFe|No tortilla strips': { id: 'C81SN1PJZ3JR6', name: 'Remove Tortilla Strips', price: 0 },
+      'saladQuinoa|No kale': { id: '7WJBK051NVNYY', name: 'Remove Kale', price: 0 },
+      'saladQuinoa|No quinoa': { id: 'PVZ477W2RZXFP', name: 'Remove Quinoa', price: 0 },
+      'saladQuinoa|No corn': { id: 'CS58YDZHVHMTY', name: 'Remove Corn', price: 0 },
+      'saladQuinoa|No pickled onions': { id: 'EWAKFYKGMVPMC', name: 'Remove Pickled Onions', price: 0 },
+      'saladQuinoa|No bell peppers': { id: 'HD0R7YP1HSEYJ', name: 'Remove Bell Peppers', price: 0 },
+      'saladQuinoa|No jalapeños': { id: 'K3D7XV6Z0JRF2', name: 'Remove Jalapenos', price: 0 },
+      'saladPineapple|No mixed greens': { id: 'ACKFHV4MVEPDA', name: 'Remove Mixed Greens', price: 0 },
+      'saladPineapple|No pineapple': { id: '19DZHVFGXKZGA', name: 'Remove Pineapple', price: 0 },
+      'saladPineapple|No black beans': { id: 'VM310VXMHTDR6', name: 'Remove Black Beans', price: 0 },
+      'saladPineapple|No bell peppers': { id: 'CPFK125YQB4RR', name: 'Remove Bell Peppers', price: 0 },
+      'saladPineapple|No cilantro': { id: '7M3W9FTYF2T0P', name: 'Remove Cilantro', price: 0 },
+    },
+  },
+
+  // Filled by the next task (the sandbox inventory is a copy of production's)
+  sandbox: {
+    merchantId: '',
+    items: {},
+    options: {},
+  },
+};

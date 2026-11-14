@@ -16,6 +16,11 @@
    trusted), creates a Clover atomic order with the store's settings, pays
    it with the card token, then sends it to the kitchen printer. An order
    that isn't paid is deleted, so it never reaches the kitchen.
+   Each dish is sent as the Clover inventory item it is (worker/clover-ids.js):
+   { item: { id }, modifications: [{ modifier: { id }, name, amount }], note },
+   so Clover fills in the name, price, tax and labels (which route it to the
+   right printer and KDS). Fails closed: if anything in the cart has no
+   Clover ID for this environment, the order is refused, never sent by name.
      -> 200 { success: true, orderId, total }
      -> 4xx/5xx { success: false, error }   (error is shown to the customer)
 
@@ -23,7 +28,9 @@
      Ordering open, enabled stores and, per store, which settings are set
      and a live Clover check of its tax rate and order type: yes/no and
      ok/fail only, never values. Plus the commit it was built from
-     (BUILD_COMMIT, set by scripts/deploy-preview.sh).
+     (BUILD_COMMIT, set by scripts/deploy-preview.sh), and menu: whether
+     every website item and option has a Clover ID for this environment
+     (missing keys listed) and whether each store's merchant has those IDs.
 
    SETTINGS (wrangler.toml [vars] / [previews.vars] / [env.livetest.vars])
      ORDERING_OPEN       "true" to take orders; anything else pauses them
@@ -50,6 +57,7 @@
    ========================================================================== */
 
 import { GROUPS, ITEMS, TAX_RATE } from './menu.js';
+import { CLOVER_IDS } from './clover-ids.js';
 
 const CLOVER_URLS = {
   sandbox: { api: 'https://apisandbox.dev.clover.com', ecom: 'https://scl-sandbox.dev.clover.com', sdk: 'https://checkout.sandbox.dev.clover.com/sdk.js' },
@@ -72,7 +80,7 @@ const PICKUP = {
 };
 
 const LIMITS = {
-  bodyBytes: 20000, linesMax: 30, qtyMax: 20, itemsMax: 60, modsMax: 12,
+  bodyBytes: 20000, linesMax: 30, qtyMax: 20, itemsMax: 60, modsMax: 30,
   noteMax: 140, nameMax: 60, totalMax: 150000, // cents
 };
 
@@ -153,6 +161,32 @@ function missingSettings(env, id) {
   return requiredSettings(env).filter(function (key) { return !storeSetting(env, id, key); });
 }
 
+// Clover inventory IDs for this environment (worker/clover-ids.js)
+function cloverIds(env) {
+  return CLOVER_IDS[isProduction(env) ? 'production' : 'sandbox'];
+}
+
+// Website items and options with no Clover ID here ("group|label" for
+// options). null is a real entry: a choice that sends no modifier.
+function missingCloverIds(env) {
+  const ids = cloverIds(env);
+  const missing = Object.keys(ITEMS).filter(function (key) { return !ids.items[key]; });
+  Object.keys(GROUPS).forEach(function (g) {
+    GROUPS[g].options.forEach(function (o) {
+      const key = g + '|' + o.label;
+      const link = ids.options[key];
+      if (link === undefined || (link === null && !o.none)) missing.push(key);
+    });
+  });
+  return missing;
+}
+
+// The IDs belong to one merchant: a store on another merchant has none
+function storeHasCloverIds(env, id) {
+  const merchantId = cloverIds(env).merchantId;
+  return !!merchantId && storeSetting(env, id, 'CLOVER_MERCHANT_ID') === merchantId;
+}
+
 function config(env) {
   const stores = {};
   enabledStores(env).forEach(function (id) {
@@ -191,21 +225,26 @@ async function health(env) {
     const results = await Promise.all([check('/tax_rates/', s.taxRateId), check('/order_types/', s.orderTypeId)]);
 
     stores[id] = {
-      ready: !missingSettings(env, id).length && results[0] === 'ok' && (results[1] === 'ok' || (!isProduction(env) && results[1] === 'not set')),
+      ready: !missingSettings(env, id).length && results[0] === 'ok' && (results[1] === 'ok' || (!isProduction(env) && results[1] === 'not set')) &&
+        storeHasCloverIds(env, id),
       settings: settings,
+      cloverIds: storeHasCloverIds(env, id) ? 'ok' : 'not for this merchant',
       orderTypeSet: !!s.orderTypeId,
       clover: { taxRate: results[0], orderType: results[1] },
     };
   }));
 
+  const missingIds = missingCloverIds(env);
   return {
-    ready: orderingOpen(env) && Object.keys(stores).length > 0 && Object.keys(stores).every(function (id) { return stores[id].ready; }),
+    ready: orderingOpen(env) && !missingIds.length && Object.keys(stores).length > 0 &&
+      Object.keys(stores).every(function (id) { return stores[id].ready; }),
     commit: env.BUILD_COMMIT || 'unknown',
     clover: isProduction(env) ? 'production' : 'sandbox',
     currency: env.CLOVER_CURRENCY || 'cad',
     orderingOpen: orderingOpen(env),
     storesEnabled: enabledStores(env),
     closedDates: closedDates(env).length,
+    menu: { ready: !missingIds.length, missingCloverIds: missingIds },
     stores: stores,
   };
 }
@@ -243,19 +282,24 @@ async function createOrder(request, env, url) {
     console.error('create-order: missing settings for ' + store + ': ' + missing.join(', '));
     return json({ success: false, error: 'Online payment isn’t set up yet. Please call us at ' + PHONE + ' to order.' }, 503);
   }
+  // Every dish and option needs its Clover ID; never fall back to name + price
+  if (order.missing.length || !storeHasCloverIds(env, store)) {
+    console.error('create-order: no Clover IDs for ' + (order.missing.join(', ') || 'merchant of ' + store) +
+      ' (' + (isProduction(env) ? 'production' : 'sandbox') + ')');
+    return json({ success: false, error: 'Online payment isn’t set up yet. Please call us at ' + PHONE + ' to order.' }, 503);
+  }
   const s = storeSettings(env, store);
   const urls = cloverUrls(env);
   const auth = { authorization: 'Bearer ' + s.privateToken };
   const merchantUrl = urls.api + '/v3/merchants/' + encodeURIComponent(s.merchantId);
   const orderUrl = function (id) { return merchantUrl + '/orders/' + encodeURIComponent(id); };
 
-  // 1. Create the order (Clover adds the tax from the store's tax rate)
+  // 1. Create the order. Each line is the Clover item (Clover fills in its
+  // name, price, tax and labels) plus its modifiers; no name or price here.
   const orderCart = {
     title: 'Online Pickup',
     note: order.note,
-    lineItems: order.lineItems.map(function (line) {
-      return { name: line.name, price: line.price, note: line.note || undefined, taxRates: [{ id: s.taxRateId }] };
-    }),
+    lineItems: order.lineItems.map(cloverLine),
   };
   if (s.orderTypeId) orderCart.orderType = { id: s.orderTypeId };
 
@@ -389,10 +433,12 @@ function priceOrder(body, now, env) {
   if (!Array.isArray(cart) || !cart.length) throw new BadRequest('Your cart is empty.');
   if (cart.length > LIMITS.linesMax) throw new BadRequest(BIG_ORDER);
 
+  const ids = cloverIds(env);
+  const missing = [];
   const lineItems = [];
   let subtotal = 0;
   cart.forEach(function (line) {
-    const priced = priceLine(line);
+    const priced = priceLine(line, ids, missing);
     subtotal += priced.price * line.qty;
     // One Clover line item per dish, so each prints and shows on its own
     for (let i = 0; i < line.qty; i++) lineItems.push(priced);
@@ -407,6 +453,7 @@ function priceOrder(body, now, env) {
     source: source,
     location: pickup.location,
     lineItems: lineItems,
+    missing: missing.filter(function (key, i) { return missing.indexOf(key) === i; }),
     subtotal: subtotal,
     tax: tax,
     total: subtotal + tax,
@@ -420,8 +467,11 @@ function priceOrder(body, now, env) {
   };
 }
 
-// -> { name: 'Pollo Burrito', price: 1800, note: 'Add guacamole. "extra spicy"' }
-function priceLine(line) {
+// -> { price: 1800 (website, per dish), item: Clover item ID,
+//      modifications: [{ modifier: { id }, name, amount }], note: customer's text }
+// Keys with no Clover ID go into missing (and item/modifications are left
+// incomplete: createOrder refuses the order).
+function priceLine(line, ids, missing) {
   const unknown = new BadRequest('Something in your cart is no longer on the menu. Please remove it and try again.');
   if (!line || typeof line !== 'object' || typeof line.item !== 'string') throw unknown;
   const item = Object.prototype.hasOwnProperty.call(ITEMS, line.item) && ITEMS[line.item];
@@ -450,14 +500,29 @@ function priceLine(line) {
   if (typeof note !== 'string') throw unknown;
   note = clean(note).slice(0, LIMITS.noteMax);
 
-  // Name and options as the cart shows them (see lineName/modsText in js/order.js)
-  const named = item.nameFrom && mods.find(function (m) { return m.g === item.nameFrom; });
-  const options = mods.filter(function (m) { return m !== named; }).map(function (m) { return m.label; });
-  return {
-    name: named ? item.fullName + ' ' + named.label : item.fullName,
-    price: price,
-    note: [options.join(', '), note && '"' + note + '"'].filter(Boolean).join('. '),
-  };
+  // The Clover item and modifiers. A modifier is sent with Clover's name and
+  // price (Clover doesn't fill them in from the ID). Single Taco: the item
+  // is $0 in Clover and the protein modifier carries the $7.00.
+  const cloverItem = ids.items[line.item];
+  if (!cloverItem) missing.push(line.item);
+  const modifications = [];
+  mods.forEach(function (mod) {
+    const key = mod.g + '|' + mod.label;
+    const link = ids.options[key];
+    if (link === null) return; // e.g. "No protein": nothing to send
+    if (!link) { missing.push(key); return; }
+    modifications.push({ modifier: { id: link.id }, name: link.name, amount: link.price });
+  });
+
+  return { price: price, item: cloverItem, modifications: modifications, note: note };
+}
+
+// One dish as a Clover order line
+function cloverLine(line) {
+  const out = { item: { id: line.item } };
+  if (line.modifications.length) out.modifications = line.modifications;
+  if (line.note) out.note = line.note;
+  return out;
 }
 
 // Same-day pickup only, while the store is open (same rules as pickupDay()

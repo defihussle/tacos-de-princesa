@@ -2,6 +2,10 @@
 // must have the same item keys, prices, option groups, option labels and
 // option prices, and the same tax rate. If they differ, orders are rejected
 // ("no longer on the menu") or charged differently from what the page shows.
+// Also checks worker/clover-ids.js (production): every website item and
+// option has a Clover ID, no ID is left over, and each modifier's price is
+// the website option's price (Single Taco: the dish's price, see
+// PRICE_ON_OPTION). Prices against Clover itself: scripts/check-clover.mjs.
 //
 // Run before every merge to main (and after any menu change):
 //   node scripts/check-menu.mjs
@@ -13,6 +17,7 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const worker = await import(pathToFileURL(join(root, 'worker/menu.js')).href);
+const { CLOVER_IDS, PRICE_ON_OPTION } = await import(pathToFileURL(join(root, 'worker/clover-ids.js')).href);
 
 // The page's menu: section 1 of js/order.js run on its own (it has no
 // browser code), giving its GROUPS and ITEMS
@@ -54,8 +59,42 @@ for (const key of new Set([...Object.keys(page.GROUPS), ...Object.keys(worker.GR
   }
 }
 
+// Clover IDs (production). Options are "group|label".
+const ids = CLOVER_IDS.production;
+const priceOnOption = {}; // group -> website price of the dish whose price it carries
+for (const [key, g] of Object.entries(PRICE_ON_OPTION)) {
+  if (!worker.ITEMS[key]) problems.push(`clover-ids PRICE_ON_OPTION: ${key} isn't a website item`);
+  else priceOnOption[g] = worker.ITEMS[key].price;
+}
+if (!ids.merchantId) problems.push('clover-ids production: no merchantId');
+for (const key of Object.keys(worker.ITEMS)) {
+  if (!ids.items[key]) problems.push(`${key}: no production Clover item ID`);
+}
+for (const key of Object.keys(ids.items)) {
+  if (!worker.ITEMS[key]) problems.push(`clover-ids: item ${key} isn't on the website`);
+}
+const websiteOptions = new Set();
+for (const [g, group] of Object.entries(worker.GROUPS)) {
+  for (const o of group.options) {
+    const key = `${g}|${o.label}`;
+    websiteOptions.add(key);
+    const link = ids.options[key];
+    if (link === undefined) { problems.push(`${key}: no production Clover modifier`); continue; }
+    if (link === null) { if (!o.none) problems.push(`${key}: null (sends nothing) but it isn't a "none" option`); continue; }
+    if (!link.id || !link.name || !Number.isInteger(link.price)) { problems.push(`${key}: needs id, name and price`); continue; }
+    const expected = g in priceOnOption ? priceOnOption[g] + o.price : o.price;
+    if (link.price !== expected) problems.push(`${key}: Clover modifier price ${link.price}, website ${expected}`);
+  }
+}
+for (const key of Object.keys(ids.options)) {
+  if (!websiteOptions.has(key)) problems.push(`clover-ids: option ${key} isn't on the website`);
+}
+
 if (problems.length) {
   console.error(`Menu check FAILED (${problems.length}):\n  ` + problems.join('\n  '));
   process.exit(1);
 }
-console.log(`Menu check passed: ${Object.keys(page.ITEMS).length} items, ${Object.keys(page.GROUPS).length} option groups, tax ${pageTax}.`);
+const sandbox = CLOVER_IDS.sandbox;
+console.log(`Menu check passed: ${Object.keys(page.ITEMS).length} items, ${Object.keys(page.GROUPS).length} option groups, tax ${pageTax}; ` +
+  `production Clover IDs for all ${Object.keys(ids.items).length} items and ${Object.keys(ids.options).length} options ` +
+  `(sandbox: ${Object.keys(sandbox.items).length} items, ${Object.keys(sandbox.options).length} options).`);
