@@ -242,7 +242,6 @@ async function health(env) {
     clover: isProduction(env) ? 'production' : 'sandbox',
     currency: env.CLOVER_CURRENCY || 'cad',
     orderingOpen: orderingOpen(env),
-    pickupAnyTime: env.PICKUP_ANY_TIME === 'true' && !isProduction(env), // temporary test switch
     storesEnabled: enabledStores(env),
     closedDates: closedDates(env).length,
     menu: { ready: !missingIds.length, missingCloverIds: missingIds },
@@ -551,18 +550,6 @@ function checkPickup(pickup, now, env) {
   const today = torontoNow(now);
   const closed = new BadRequest('We’re not taking online orders right now. Please call us at ' + PHONE + '.');
   const timeGone = new BadRequest('That pickup time is no longer available. Please go back and choose another.');
-
-  // TEMPORARY, SANDBOX TESTING ONLY: PICKUP_ANY_TIME = "true" (preview
-  // settings) skips the opening-hours check so payment tests can run when
-  // the store is closed. Ignored in production. Remove after testing.
-  if (env.PICKUP_ANY_TIME === 'true' && !isProduction(env)) {
-    return {
-      name: name,
-      phone: digits.slice(0, 3) + '-' + digits.slice(3, 6) + '-' + digits.slice(6),
-      location: pickup.location,
-      when: 'TEST ' + (pickup.asap === true ? 'ASAP' : String(pickup.time || '').slice(0, 16)) + ' (hours check off)',
-    };
-  }
 
   // Open now: a store day, not a closed date, between opening and the last
   // time an ASAP order can still be ready by the last slot
