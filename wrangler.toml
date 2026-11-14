@@ -48,6 +48,7 @@ CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
 # previews never charge real cards.
 [previews.vars]
 ORDERING_OPEN = "true"
+PICKUP_ANY_TIME = "true"   # TEMPORARY: sandbox payment tests outside store hours; remove after testing
 STORES_ENABLED = "one-york"
 CLOSED_DATES = ""
 CLOVER_ENV = "sandbox"
