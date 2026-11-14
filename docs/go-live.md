@@ -54,6 +54,24 @@ inventory item, and every option is a Clover modifier:
 - `docs/clover-mapping.md` is the original mapping and its open questions;
   `.local/clover-inventory-live.json` (not committed) is a read-only export.
 
+### The sandbox copy of the menu
+
+Previews use the Clover sandbox test merchant (`2N9FRNJANSV31`), whose
+inventory is a copy of the live menu made by
+
+```sh
+CLOVER_SANDBOX_TOKEN=<sandbox private token> node scripts/sync-sandbox-menu.mjs
+```
+
+It reads `.local/clover-inventory-live.json` and the production IDs, creates
+any missing items, modifier groups and modifiers in the sandbox (same names
+and prices, HST 13%), attaches the groups, and writes the sandbox section of
+`worker/clover-ids.js`. It is re-runnable (it only creates what's missing;
+`--dry-run` shows the plan) and refuses any host but
+`apisandbox.dev.clover.com` and any merchant but `2N9FRNJANSV31`. It doesn't
+copy labels (the sandbox has no printers or KDS), so `check-clover --env
+sandbox` warns about labels; that's expected.
+
 ### When the owner changes the menu in Clover
 
 1. Update both menu files the same way: `worker/menu.js` and `js/order.js`
