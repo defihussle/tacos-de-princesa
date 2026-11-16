@@ -435,12 +435,16 @@ async function printAndVerify(env, merchantUrl, auth, orderId, order) {
 }
 
 // A print job's state: CREATED, PRINTING, FAILED, or DONE. Clover discards a
-// job once it has printed and then answers "The print event is missing".
+// job once it has printed, so only HTTP 404 counts as printed. Anything else
+// (401, 403, 5xx, a timeout, an unexpected body) is UNKNOWN, which alerts if
+// it's still that at the last check: better a needless email than a lost order.
+const PRINT_STATES = ['CREATED', 'PRINTING', 'FAILED', 'DONE'];
+
 async function printState(merchantUrl, auth, jobId) {
   const r = await clover(merchantUrl + '/print_event/' + encodeURIComponent(jobId),
     Object.assign({ 'user-agent': 'tacos-de-princesa' }, auth), null, 'GET', 4000);
-  if (r.status === 404 || /missing/i.test(JSON.stringify(r.data || r.error || ''))) return 'DONE';
-  if (r.ok && r.data && r.data.state) return r.data.state;
+  if (r.status === 404) return 'DONE';
+  if (r.ok && r.data && PRINT_STATES.indexOf(r.data.state) !== -1) return r.data.state;
   return 'UNKNOWN (HTTP ' + r.status + ')';
 }
 
