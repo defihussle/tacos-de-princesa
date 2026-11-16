@@ -10,3 +10,15 @@ worker
 scripts
 .gitattributes
 docs
+
+# Local working files and editor/OS cruft (never part of the website)
+.local
+.env
+.env.*
+.vscode
+.idea
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
