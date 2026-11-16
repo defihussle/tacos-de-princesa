@@ -199,6 +199,14 @@ function storeHasCloverIds(env, id) {
   return !!merchantId && storeSetting(env, id, 'CLOVER_MERCHANT_ID') === merchantId;
 }
 
+// TEMPORARY TEST SWITCH (remove after testing): PICKUP_ANY_TIME = "true" in
+// [previews.vars] skips the opening-hours, cutoff and holiday checks so a
+// sandbox order can be placed when the store is closed. Never on in
+// production, whatever the setting says.
+function pickupAnyTime(env) {
+  return env.PICKUP_ANY_TIME === 'true' && !isProduction(env);
+}
+
 function config(env) {
   const stores = {};
   enabledStores(env).forEach(function (id) {
@@ -209,6 +217,7 @@ function config(env) {
     environment: isProduction(env) ? 'production' : 'sandbox',
     sdkUrl: cloverUrls(env).sdk,
     orderingOpen: orderingOpen(env),
+    pickupAnyTime: pickupAnyTime(env), // TEMPORARY test switch
     closedDates: closedDates(env),
     phone: PHONE,
     stores: stores,
@@ -254,6 +263,7 @@ async function health(env) {
     clover: isProduction(env) ? 'production' : 'sandbox',
     currency: env.CLOVER_CURRENCY || 'cad',
     orderingOpen: orderingOpen(env),
+    pickupAnyTime: pickupAnyTime(env), // TEMPORARY test switch
     storesEnabled: enabledStores(env),
     closedDates: closedDates(env).length,
     alerts: { recipients: list(env.ALERT_EMAILS).length, sender: !!env.ALERT_FROM, binding: !!env.ALERT_EMAIL },
@@ -681,6 +691,18 @@ function checkPickup(pickup, now, env) {
   const hours = HOURS[pickup.location];
   const today = torontoNow(now);
   const timeGone = new BadRequest('That pickup time is no longer available. Please go back and choose another.');
+
+  // TEMPORARY test switch: any time, any day; ASAP or a slot today
+  if (pickupAnyTime(env)) {
+    const t = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(typeof pickup.time === 'string' ? pickup.time : '');
+    if (pickup.asap !== true && (!t || t[1] !== today.iso)) throw timeGone;
+    return {
+      name: name,
+      phone: digits.slice(0, 3) + '-' + digits.slice(3, 6) + '-' + digits.slice(6),
+      location: pickup.location,
+      when: 'TEST ' + (pickup.asap === true ? 'ASAP' : 'Today ' + t[2] + ':' + t[3]) + ' (hours check off)',
+    };
+  }
 
   // Taking orders right now: an open day that isn't a holiday or a closed
   // date, from opening until the cutoff (17:30)
