@@ -4,6 +4,13 @@ compatibility_date = "2024-01-01"
 # Handles /api/* (online ordering); everything else is a static file
 main = "worker/index.js"
 
+# Production answers only at tacosprincesa.ca, not at a workers.dev address.
+# preview_urls keeps branch previews (and version preview URLs) working,
+# since they'd otherwise follow workers_dev. Livetest keeps its own
+# workers.dev address (below).
+workers_dev = false
+preview_urls = true
+
 # The whole site is static files at the repo root (.assetsignore lists what
 # isn't published)
 [assets]
@@ -12,9 +19,11 @@ binding = "ASSETS"
 run_worker_first = ["/api/*"]
 
 # Workers Logs: console output of every request, searchable in the
-# dashboard (Workers > the Worker > Logs). One line per order:
-#   ORDER <orderId> store=<store> amount=<cents> print=<printEventId|FAILED>
-# and PRINT FAILED <orderId> when the kitchen printer couldn't be reached.
+# dashboard (Workers > the Worker > Logs). Per order:
+#   ORDER <orderId> store=<store> amount=<cents>
+#   PRINT SENT <orderId> ... job <id>, then PRINTED <orderId> ...
+#   PRINT FAILED <orderId> ... (refused, failed, or not printed in time)
+#   ALERT SENT / ALERT FAILED / ALERT NOT SENT (the "didn't print" email)
 [observability]
 enabled = true
 
@@ -31,12 +40,24 @@ enabled = true
 # Settings > Previews base config, or `wrangler preview secret put`).
 # ---------------------------------------------------------------------------
 
+# "Order didn't print" emails: the send_email binding ALERT_EMAIL. Each
+# address in ALERT_EMAILS must be a verified destination in Email Routing for
+# tacosprincesa.ca, and ALERT_FROM an address on tacosprincesa.ca (go-live
+# docs). Previews and livetest need their own copy (bindings aren't shared).
+[[send_email]]
+name = "ALERT_EMAIL"
+
+[[previews.send_email]]
+name = "ALERT_EMAIL"
+
 # PRODUCTION. Ordering stays OFF until launch; these Clover values are still
 # the SANDBOX ones and must be replaced (docs/go-live.md).
 [vars]
 ORDERING_OPEN = "false"
 STORES_ENABLED = "one-york"
-CLOSED_DATES = ""          # PATH holidays, e.g. "2026-12-25,2026-12-28"
+CLOSED_DATES = ""          # one-off closures, e.g. "2026-12-31" (holidays are automatic: worker/hours.js)
+ALERT_EMAILS = "omer@narcostacos.ca"   # comma-separated
+ALERT_FROM = "alerts@tacosprincesa.ca"
 CLOVER_ENV = "sandbox"
 CLOVER_CURRENCY = "usd"
 CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
@@ -50,6 +71,8 @@ CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
 ORDERING_OPEN = "true"
 STORES_ENABLED = "one-york"
 CLOSED_DATES = ""
+ALERT_EMAILS = "omer@narcostacos.ca"
+ALERT_FROM = "alerts@tacosprincesa.ca"
 CLOVER_ENV = "sandbox"
 CLOVER_CURRENCY = "usd"
 CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
@@ -77,13 +100,18 @@ run_worker_first = ["/api/*"]
 [env.livetest.observability]
 enabled = true
 
+[[env.livetest.send_email]]
+name = "ALERT_EMAIL"
+
 [env.livetest.vars]
 ORDERING_OPEN = "false"
 STORES_ENABLED = "one-york"
 CLOSED_DATES = ""
+ALERT_EMAILS = "omer@narcostacos.ca"
+ALERT_FROM = "alerts@tacosprincesa.ca"
 CLOVER_ENV = "production"
 CLOVER_CURRENCY = "cad"
 CLOVER_MERCHANT_ID = ""    # live merchant ID
 CLOVER_PUBLIC_KEY = ""     # live public (Ecommerce) key
 CLOVER_TAX_RATE_ID = ""    # live HST 13% tax rate ID
-CLOVER_ORDER_TYPE_ID = ""  # live "Online Pickup" order type ID (required in production)
+CLOVER_ORDER_TYPE_ID = ""  # live order type "Website Pick Up 1 York" (DR9JRZ31WB6Y4); required in production

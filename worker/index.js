@@ -16,6 +16,14 @@
    trusted), creates a Clover atomic order with the store's settings, pays
    it with the card token, then sends it to the kitchen printer. An order
    that isn't paid is deleted, so it never reaches the kitchen.
+   Online orders are taken Mon-Fri from opening (10:30) until 17:30, never on
+   holidays (worker/hours.js); pickup is the same day, ASAP or a 15-minute
+   slot up to 17:45.
+   Printing happens after the customer has their answer (ctx.waitUntil): one
+   retry after ~5 s if Clover refuses, then the job's state is checked ~15 s
+   and ~26 s later. If it failed or hasn't printed, ONE alert email goes to
+   ALERT_EMAILS. (Cloudflare cancels waitUntil work 30 s after the response,
+   so the last check can't be later; a later check would need a Queue.)
    Each dish is sent as the Clover inventory item it is (worker/clover-ids.js):
    { item: { id }, modifications: [{ modifier: { id }, name, amount }], note },
    so Clover fills in the name, price, tax and labels (which route it to the
@@ -40,6 +48,10 @@
                          "2026-12-25,2026-12-28"; empty for none
      CLOVER_ENV          "sandbox" or "production"
      CLOVER_CURRENCY     "usd" (sandbox test merchant) or "cad"
+     ALERT_EMAILS        who gets "order didn't print" emails, comma-separated
+                         (each must be a verified Email Routing destination)
+     ALERT_FROM          the sender, an address on tacosprincesa.ca
+   Binding ALERT_EMAIL (send_email) sends them.
    Per store, each of these can be suffixed with the store (_ONE_YORK,
    _KING_ST_W) to override the shared value, e.g. CLOVER_MERCHANT_ID_ONE_YORK:
      CLOVER_MERCHANT_ID, CLOVER_PUBLIC_KEY, CLOVER_TAX_RATE_ID,
@@ -58,26 +70,26 @@
 
 import { GROUPS, ITEMS, TAX_RATE } from './menu.js';
 import { CLOVER_IDS } from './clover-ids.js';
+import { HOURS, PICKUP, torontoNow, orderingWindow, pickupSlots, toMinutes, clockText } from './hours.js';
 
 const CLOVER_URLS = {
   sandbox: { api: 'https://apisandbox.dev.clover.com', ecom: 'https://scl-sandbox.dev.clover.com', sdk: 'https://checkout.sandbox.dev.clover.com/sdk.js' },
   production: { api: 'https://api.clover.com', ecom: 'https://scl.clover.com', sdk: 'https://checkout.clover.com/sdk.js' },
 };
 
-// Keep in sync with LOCATIONS and CONFIG (pickup timing) in js/order.js.
-// suffix: the store's settings suffix. days: 0 = Sunday ... 6 = Saturday
+// Stores (opening hours and pickup rules: worker/hours.js).
+// suffix: the store's settings suffix.
 const LOCATIONS = {
-  'king-st-w': { label: 'King St W (150 King St W, in the PATH)', suffix: 'KING_ST_W', days: [1, 2, 3, 4, 5], open: '10:30', close: '18:00' },
-  'one-york': { label: 'One York (One York Street, 2nd Floor)', suffix: 'ONE_YORK', days: [1, 2, 3, 4, 5], open: '10:30', close: '19:00' },
+  'king-st-w': { label: 'King St W (150 King St W, in the PATH)', suffix: 'KING_ST_W' },
+  'one-york': { label: 'One York (One York Street, 2nd Floor)', suffix: 'ONE_YORK' },
 };
 
-const PICKUP = {
-  timeZone: 'America/Toronto',
-  slotMinutes: 15,
-  kitchenLeadMinutes: 20,
-  lastSlotBeforeClose: 30,
-  graceMinutes: 10, // a slot chosen a few minutes ago may now be slightly too soon
-};
+// A slot offered a few minutes ago may now be slightly too soon
+const SLOT_GRACE_MINUTES = 10;
+
+// Printing (see the header): Clover call timeout, retry delay, and when the
+// job is checked (ms after the response). Must finish within 30 s.
+const PRINT = { timeoutMs: 6000, retryAfterMs: 5000, checksMs: [15000, 26000] };
 
 const LIMITS = {
   bodyBytes: 20000, linesMax: 30, qtyMax: 20, itemsMax: 60, modsMax: 30,
@@ -89,11 +101,11 @@ const BIG_ORDER = 'That’s a big order! Please call us at ' + PHONE + ' to plac
 const PAUSED = 'Online ordering is paused, please call ' + PHONE + '.';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/create-order') {
       if (request.method !== 'POST') return json({ success: false, error: 'Use POST.' }, 405, { Allow: 'POST' });
-      return createOrder(request, env, url);
+      return createOrder(request, env, url, ctx);
     }
     if (url.pathname === '/api/config') return json(config(env));
     if (url.pathname === '/api/health') return json(await health(env));
@@ -244,6 +256,7 @@ async function health(env) {
     orderingOpen: orderingOpen(env),
     storesEnabled: enabledStores(env),
     closedDates: closedDates(env).length,
+    alerts: { recipients: list(env.ALERT_EMAILS).length, sender: !!env.ALERT_FROM, binding: !!env.ALERT_EMAIL },
     menu: { ready: !missingIds.length, missingCloverIds: missingIds },
     stores: stores,
   };
@@ -255,7 +268,7 @@ class BadRequest extends Error {}
 
 /* ---- Create + pay ----------------------------------------------------- */
 
-async function createOrder(request, env, url) {
+async function createOrder(request, env, url, ctx) {
   // The switch is checked here, not only on the page
   if (!orderingOpen(env)) return json({ success: false, error: PAUSED }, 503);
 
@@ -340,7 +353,7 @@ async function createOrder(request, env, url) {
       const check = await clover(orderUrl(orderId), auth, null, 'GET');
       if (check.ok && check.data && check.data.paymentState === 'PAID') {
         console.log('create-order: paid (confirmed after an unclear reply)', orderId);
-        return paidOrder(merchantUrl, auth, orderId, store, amount);
+        return paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount);
       }
       if (!check.ok) {
         console.error('create-order: PAYMENT STATE UNKNOWN, order left in Clover', orderId, check.status);
@@ -369,19 +382,127 @@ async function createOrder(request, env, url) {
     }, declined ? 402 : badSource ? 400 : 502);
   }
 
-  return paidOrder(merchantUrl, auth, orderId, store, amount);
+  return paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount);
 }
 
-// 3. Paid: send it to the kitchen printer, log the order, answer success.
-// A failed print never turns a paid order into an error for the customer.
-async function paidOrder(merchantUrl, auth, orderId, store, amount) {
-  const printed = await clover(merchantUrl + '/print_event', auth, { orderRef: { id: orderId } }, 'POST', 8000);
-  const printId = printed.ok && printed.data && printed.data.id;
-  if (!printId) {
-    console.error('PRINT FAILED ' + orderId + ' (store ' + store + ', HTTP ' + printed.status + '): print it from Clover by hand', printed.error);
-  }
-  console.log('ORDER ' + orderId + ' store=' + store + ' amount=' + amount + ' print=' + (printId || 'FAILED'));
+// 3. Paid: answer the customer now; print in the background. Printing never
+// delays or changes the customer's answer.
+function paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount) {
+  console.log('ORDER ' + orderId + ' store=' + order.location + ' amount=' + amount);
+  const job = printAndVerify(env, merchantUrl, auth, orderId, order).catch(function (error) {
+    console.error('PRINT CHECK ERROR ' + orderId + ': ' + error);
+  });
+  if (ctx && ctx.waitUntil) ctx.waitUntil(job);
   return json({ success: true, orderId: orderId, total: amount });
+}
+
+// Send the order to the kitchen printer, retry once, then check it really
+// printed: a 200 only means Clover accepted the job (an offline printer
+// accepts it and never prints). Alerts by email if it didn't print.
+async function printAndVerify(env, merchantUrl, auth, orderId, order) {
+  const started = Date.now();
+  const wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, Math.max(0, ms)); }); };
+  const where = ' (store ' + order.location + ')';
+  const print = function () {
+    return clover(merchantUrl + '/print_event', auth, { orderRef: { id: orderId } }, 'POST', PRINT.timeoutMs);
+  };
+
+  let printed = await print();
+  if (!(printed.ok && printed.data && printed.data.id)) {
+    console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ', attempt 1: retrying in 5 s', printed.error);
+    await wait(PRINT.retryAfterMs);
+    printed = await print();
+  }
+  const jobId = printed.ok && printed.data && printed.data.id;
+  if (!jobId) {
+    console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ', attempt 2: print it from Clover by hand', printed.error);
+    return sendPrintAlert(env, orderId, order, 'Clover refused the print request twice (' + errorText(printed) + ').');
+  }
+  console.log('PRINT SENT ' + orderId + where + ', job ' + jobId);
+
+  let state = 'CREATED';
+  for (const at of PRINT.checksMs) {
+    await wait(started + at - Date.now());
+    state = await printState(merchantUrl, auth, jobId);
+    if (state === 'DONE') { console.log('PRINTED ' + orderId + ', job ' + jobId); return; }
+    if (state === 'FAILED') break;
+  }
+  const seconds = Math.round((Date.now() - started) / 1000);
+  console.error('PRINT FAILED ' + orderId + where + ', job ' + jobId + ' is ' + state + ' after ' + seconds + ' s: print it from Clover by hand');
+  return sendPrintAlert(env, orderId, order, state === 'FAILED'
+    ? 'The printer reported the job as FAILED.'
+    : 'The ticket still hadn’t printed ' + seconds + ' seconds after the order (Clover says: ' + state + '). The printer may be offline or out of paper.');
+}
+
+// A print job's state: CREATED, PRINTING, FAILED, or DONE. Clover discards a
+// job once it has printed and then answers "The print event is missing".
+async function printState(merchantUrl, auth, jobId) {
+  const r = await clover(merchantUrl + '/print_event/' + encodeURIComponent(jobId),
+    Object.assign({ 'user-agent': 'tacos-de-princesa' }, auth), null, 'GET', 4000);
+  if (r.status === 404 || /missing/i.test(JSON.stringify(r.data || r.error || ''))) return 'DONE';
+  if (r.ok && r.data && r.data.state) return r.data.state;
+  return 'UNKNOWN (HTTP ' + r.status + ')';
+}
+
+function errorText(result) {
+  const e = result.error;
+  return 'HTTP ' + result.status + (e ? ': ' + String(typeof e === 'string' ? e : e.message || JSON.stringify(e)).slice(0, 150) : '');
+}
+
+// ONE email to everyone in ALERT_EMAILS. Never contains card details (the
+// Worker only ever has a single-use card token anyway).
+function sendPrintAlert(env, orderId, order, reason) {
+  const counts = {};
+  order.lineItems.forEach(function (line) { counts[line.label] = (counts[line.label] || 0) + 1; });
+  const text = [
+    'An online order did not print in the kitchen.',
+    '',
+    reason,
+    '',
+    'Order: ' + orderId,
+    'Store: ' + LOCATIONS[order.location].label,
+    'Pickup: ' + order.pickup.when,
+    'Customer: ' + order.pickup.name + ', ' + order.pickup.phone,
+    '',
+    'Items:',
+  ].concat(Object.keys(counts).map(function (label) { return '- ' + counts[label] + ' x ' + label; })).concat([
+    '',
+    'Print it from the Clover Orders app.',
+  ]).join('\n');
+  return sendAlert(env, 'Online order ' + orderId + ' did not print', text);
+}
+
+async function sendAlert(env, subject, text) {
+  const to = list(env.ALERT_EMAILS);
+  if (!to.length || !env.ALERT_FROM || !env.ALERT_EMAIL) {
+    console.error('ALERT NOT SENT (ALERT_EMAILS, ALERT_FROM or the ALERT_EMAIL binding is missing): ' + subject);
+    return;
+  }
+  for (const address of to) {
+    try {
+      await sendEmail(env, address, subject, text);
+      console.log('ALERT SENT to ' + address + ': ' + subject);
+    } catch (error) {
+      console.error('ALERT FAILED to ' + address + ': ' + ((error && (error.code || error.message)) || error) + ' — ' + subject);
+    }
+  }
+}
+
+// Cloudflare's send_email binding: the structured send(), or a raw message
+// on runtimes that only take an EmailMessage
+async function sendEmail(env, to, subject, text) {
+  try {
+    await env.ALERT_EMAIL.send({ to: to, from: env.ALERT_FROM, subject: subject, text: text });
+  } catch (error) {
+    if (error && error.code) throw error; // a real Email error (e.g. recipient not verified)
+    const { EmailMessage } = await import('cloudflare:email');
+    const raw = [
+      'From: ' + env.ALERT_FROM, 'To: ' + to, 'Subject: ' + subject, 'Date: ' + new Date().toUTCString(),
+      'Message-ID: <' + crypto.randomUUID() + '@' + env.ALERT_FROM.split('@')[1] + '>',
+      'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: 8bit', '', text,
+    ].join('\r\n');
+    await env.ALERT_EMAIL.send(new EmailMessage(env.ALERT_FROM, to, raw));
+  }
 }
 
 // Delete an unpaid order. 404 means it's already gone (delete_order_on_failure).
@@ -454,6 +575,7 @@ function priceOrder(body, now, env) {
     location: pickup.location,
     lineItems: lineItems,
     missing: missing.filter(function (key, i) { return missing.indexOf(key) === i; }),
+    pickup: pickup,
     subtotal: subtotal,
     tax: tax,
     total: subtotal + tax,
@@ -514,7 +636,15 @@ function priceLine(line, ids, missing) {
     modifications.push({ modifier: { id: link.id }, name: link.name, amount: link.price });
   });
 
-  return { price: price, item: cloverItem, modifications: modifications, note: note };
+  // For staff (print alerts): the dish as the cart shows it
+  const named = item.nameFrom && mods.find(function (m) { return m.g === item.nameFrom; });
+  const shown = mods.filter(function (m) {
+    return m !== named && !GROUPS[m.g].options.find(function (o) { return o.label === m.label; }).none;
+  }).map(function (m) { return m.label; });
+  const label = (named ? item.fullName + ' ' + named.label : item.fullName) +
+    (shown.length ? ' (' + shown.join(', ') + ')' : '') + (note ? ' "' + note + '"' : '');
+
+  return { price: price, item: cloverItem, modifications: modifications, note: note, label: label };
 }
 
 // One dish as a Clover order line
@@ -544,17 +674,20 @@ function checkPickup(pickup, now, env) {
     throw new BadRequest('That location isn’t taking online orders yet. Please call us at ' + PHONE + '.');
   }
 
-  const location = LOCATIONS[pickup.location];
-  const open = toMinutes(location.open);
-  const last = toMinutes(location.close) - PICKUP.lastSlotBeforeClose;
+  const hours = HOURS[pickup.location];
   const today = torontoNow(now);
-  const closed = new BadRequest('We’re not taking online orders right now. Please call us at ' + PHONE + '.');
   const timeGone = new BadRequest('That pickup time is no longer available. Please go back and choose another.');
 
-  // Open now: a store day, not a closed date, between opening and the last
-  // time an ASAP order can still be ready by the last slot
-  if (location.days.indexOf(today.weekday) === -1 || closedDates(env).indexOf(today.iso) !== -1 ||
-      today.minutes < open || today.minutes + PICKUP.kitchenLeadMinutes > last + PICKUP.graceMinutes) throw closed;
+  // Taking orders right now: an open day that isn't a holiday or a closed
+  // date, from opening until the cutoff (17:30)
+  const window = orderingWindow(hours, today, closedDates(env));
+  if (!window.ok) {
+    if (window.reason === 'holiday') throw new BadRequest('We’re closed today for ' + window.holiday + '. Please call ' + PHONE + '.');
+    if (window.reason === 'after') {
+      throw new BadRequest('Online ordering closes at ' + clockText(toMinutes(hours.close) - PICKUP.orderUntilBeforeClose) + '. Please call ' + PHONE + '.');
+    }
+    throw new BadRequest('We’re not taking online orders right now. Please call us at ' + PHONE + '.');
+  }
 
   let when;
   if (pickup.asap === true) {
@@ -563,10 +696,9 @@ function checkPickup(pickup, now, env) {
     const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(typeof pickup.time === 'string' ? pickup.time : '');
     if (!m) throw new BadRequest('Please choose a pickup time.');
     const minutes = +m[2] * 60 + +m[3];
-    if (m[1] !== today.iso ||
-        minutes % PICKUP.slotMinutes !== 0 ||
-        minutes < open + PICKUP.kitchenLeadMinutes || minutes > last ||
-        minutes < today.minutes + PICKUP.kitchenLeadMinutes - PICKUP.graceMinutes) throw timeGone;
+    // Today, and one of the slots offered (a few minutes' grace for the time
+    // the customer took to pay)
+    if (m[1] !== today.iso || pickupSlots(hours, today.minutes - SLOT_GRACE_MINUTES).indexOf(minutes) === -1) throw timeGone;
     when = 'Today ' + timeText(minutes);
   }
 
@@ -576,26 +708,6 @@ function checkPickup(pickup, now, env) {
     location: pickup.location,
     when: when,
   };
-}
-
-// Today's date ('YYYY-MM-DD'), weekday and minutes since midnight in Toronto
-function torontoNow(now) {
-  const p = {};
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: PICKUP.timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now).forEach(function (part) { p[part.type] = part.value; });
-  const y = +p.year, m = +p.month, d = +p.day;
-  return {
-    iso: p.year + '-' + p.month + '-' + p.day,
-    weekday: new Date(Date.UTC(y, m - 1, d)).getUTCDay(),
-    minutes: +p.hour * 60 + +p.minute,
-  };
-}
-
-function toMinutes(hhmm) {
-  const parts = hhmm.split(':');
-  return +parts[0] * 60 + +parts[1];
 }
 
 // 750 -> '12:30 p.m.'

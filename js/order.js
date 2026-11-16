@@ -3,7 +3,9 @@
    Online ordering for pickup (order.html): menu, item options, cart, pickup
    details and the payment step. Prices are in cents to keep the maths exact.
 
-   0.  Config (tax, pickup timing, locations; Clover settings from the Worker)
+   0.  Config
+   0b. Hours, pickup and holidays (same as worker/hours.js)
+   0c. Server settings (Clover settings from the Worker)
    1.  Menu data
    2.  Helpers
    3.  Cart (saved in this browser)
@@ -28,12 +30,6 @@
     taxRate: 0.13,           // Ontario HST: confirm with the accountant before launch
     taxLabel: 'HST (13%)',
     timeZone: 'America/Toronto',
-    slotMinutes: 15,         // pickup times every 15 minutes
-    // The backend sends each order to the KDS this many minutes before its
-    // pickup time, so the first slot of the day is at least this long after
-    // opening, and today's slots start at least this long from now.
-    kitchenLeadMinutes: 20,
-    lastSlotBeforeClose: 30, // last pickup slot = closing time minus this
     daysAhead: 14,           // when closed, look this far ahead for the next opening
     phone: '647-298-2267',
     storageKey: 'tdp-order-cart-v1', // the cart (localStorage: shared by tabs)
@@ -41,9 +37,17 @@
     sessionKey: 'tdp-order-session-v1', // this tab's step + pickup (sessionStorage)
   };
 
-  // Same-day pickup only, while the location is open (the Worker enforces
-  // the same rules). Keep in sync with LOCATIONS in worker/index.js.
-  // days: 0 = Sunday ... 6 = Saturday.
+
+  /* ---- 0b. Hours, pickup and holidays ----------------------------------- */
+  // KEEP IN SYNC with worker/hours.js (same values, same results; the Worker
+  // enforces them): scripts/check-menu.mjs runs both and fails if they differ.
+  // - Stores: Mon-Fri 10:30-18:00 (days: 0 = Sunday ... 6 = Saturday).
+  // - Online orders from opening until 17:30; from 17:31 on, refused.
+  // - Pickup the same day: ASAP (about 20 minutes) or a 15-minute slot from
+  //   20 minutes from now up to 17:45.
+  // - Closed on holidays, worked out for any year; one on a weekend closes
+  //   the next free weekday. CLOSED_DATES (from the Worker) adds one-offs.
+
   const LOCATIONS = {
     'king-st-w': {
       name: 'King St W',
@@ -53,9 +57,126 @@
     'one-york': {
       name: 'One York',
       address: 'One York Street, 2nd Floor',
-      hours: { days: [1, 2, 3, 4, 5], open: '10:30', close: '19:00' },
+      hours: { days: [1, 2, 3, 4, 5], open: '10:30', close: '18:00' },
     },
   };
+
+  const PICKUP = {
+    timeZone: 'America/Toronto',
+    slotMinutes: 15,           // pickup slots every 15 minutes
+    kitchenLeadMinutes: 20,    // ASAP is about this long; the first slot is at least this far away
+    orderUntilBeforeClose: 30, // online orders until closing minus this (17:30)
+    lastSlotBeforeClose: 15,   // last pickup slot = closing minus this (17:45)
+  };
+
+  const DAY = 86400000;
+
+  function toMinutes(hhmm) {
+    const parts = hhmm.split(':');
+    return Number(parts[0]) * 60 + Number(parts[1]);
+  }
+
+  // 1050 -> '5:30 pm'
+  function clockText(minutes) {
+    const h = Math.floor(minutes / 60);
+    return ((h + 11) % 12 + 1) + ':' + String(minutes % 60).padStart(2, '0') + (h < 12 ? ' am' : ' pm');
+  }
+
+  function isoDate(ms) {
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+
+  // Easter Sunday (Gregorian calendar), as a UTC midnight timestamp
+  function easterSunday(year) {
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return Date.UTC(year, month - 1, day);
+  }
+
+  // The nth weekday (0 = Sunday) of a month (1-12)
+  function nthWeekday(year, month, weekday, n) {
+    const first = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+    return Date.UTC(year, month - 1, 1 + ((weekday - first + 7) % 7) + (n - 1) * 7);
+  }
+
+  // The weekdays a year's holidays close the stores: [{ iso, name }], by date
+  function holidayClosures(year) {
+    let victoria = Date.UTC(year, 4, 24); // the Monday before May 25
+    while (new Date(victoria).getUTCDay() !== 1) victoria -= DAY;
+    const holidays = [
+      ['New Year’s Day', Date.UTC(year, 0, 1)],
+      ['Family Day', nthWeekday(year, 2, 1, 3)],
+      ['Good Friday', easterSunday(year) - 2 * DAY],
+      ['Victoria Day', victoria],
+      ['Canada Day', Date.UTC(year, 6, 1)],
+      ['Civic Holiday', nthWeekday(year, 8, 1, 1)],
+      ['Labour Day', nthWeekday(year, 9, 1, 1)],
+      ['Thanksgiving', nthWeekday(year, 10, 1, 2)],
+      ['Christmas Day', Date.UTC(year, 11, 25)],
+      ['Boxing Day', Date.UTC(year, 11, 26)],
+    ];
+    const taken = {};
+    return holidays.map(function (holiday) {
+      let day = holiday[1];
+      // On a weekend, or a day another holiday already closes: the next weekday
+      while ([0, 6].indexOf(new Date(day).getUTCDay()) !== -1 || taken[day]) day += DAY;
+      taken[day] = true;
+      return { iso: isoDate(day), name: holiday[0] };
+    });
+  }
+
+  const holidayCache = {}; // year -> holidayClosures(year)
+
+  // Why a date (YYYY-MM-DD) is closed: the holiday's name, 'closed' for a
+  // CLOSED_DATES day, or null when it isn't
+  function closureOn(iso, closedDates) {
+    const year = +iso.slice(0, 4);
+    const closures = holidayCache[year] || (holidayCache[year] = holidayClosures(year));
+    const holiday = closures.filter(function (h) { return h.iso === iso; })[0];
+    if (holiday) return holiday.name;
+    return (closedDates || []).indexOf(iso) !== -1 ? 'closed' : null;
+  }
+
+  // Toronto's date and time now: { iso, weekday, minutes }
+  function torontoNow(now) {
+    const p = {};
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: PICKUP.timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(now).forEach(function (part) { p[part.type] = part.value; });
+    return {
+      iso: p.year + '-' + p.month + '-' + p.day,
+      weekday: new Date(Date.UTC(+p.year, +p.month - 1, +p.day)).getUTCDay(),
+      minutes: +p.hour * 60 + +p.minute,
+    };
+  }
+
+  // Can a store take an online order at this moment? -> { ok: true } or
+  // { ok: false, reason: 'holiday' | 'closed' | 'before' | 'after', holiday? }
+  function orderingWindow(hours, now, closedDates) {
+    const closure = closureOn(now.iso, closedDates);
+    if (closure && closure !== 'closed') return { ok: false, reason: 'holiday', holiday: closure };
+    if (closure || hours.days.indexOf(now.weekday) === -1) return { ok: false, reason: 'closed' };
+    if (now.minutes < toMinutes(hours.open)) return { ok: false, reason: 'before' };
+    if (now.minutes > toMinutes(hours.close) - PICKUP.orderUntilBeforeClose) return { ok: false, reason: 'after' };
+    return { ok: true };
+  }
+
+  // Today's pickup slots (minutes after midnight) when ordering at this
+  // minute: every 15 minutes from 20 minutes from now up to the last slot
+  function pickupSlots(hours, nowMinutes) {
+    const step = PICKUP.slotMinutes;
+    const last = toMinutes(hours.close) - PICKUP.lastSlotBeforeClose;
+    const slots = [];
+    for (let t = Math.ceil((nowMinutes + PICKUP.kitchenLeadMinutes) / step) * step; t <= last; t += step) slots.push(t);
+    return slots;
+  }
+
+
+  /* ---- 0c. Server settings ------------------------------------------------ */
 
   // From the Worker (GET /api/config), loaded at start (section 13):
   // { environment, sdkUrl, orderingOpen, closedDates, phone,
@@ -849,11 +970,6 @@
   // Times are Toronto time whatever the customer's device is set to. Values
   // are "YYYY-MM-DDTHH:MM" (local to Toronto) or "asap".
 
-  function toMinutes(hhmm) {
-    const parts = hhmm.split(':');
-    return Number(parts[0]) * 60 + Number(parts[1]);
-  }
-
   function hhmm(minutes) {
     return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
   }
@@ -863,59 +979,41 @@
     return ((h + 11) % 12 + 1) + ':' + String(minutes % 60).padStart(2, '0') + (h < 12 ? ' AM' : ' PM');
   }
 
-  function torontoNow() {
-    const p = {};
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: CONFIG.timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date()).forEach(function (part) { p[part.type] = part.value; });
-    const date = new Date(Date.UTC(+p.year, +p.month - 1, +p.day));
-    return { date: date, iso: p.year + '-' + p.month + '-' + p.day, weekday: date.getUTCDay(), minutes: +p.hour * 60 + +p.minute };
+  function closedDates() {
+    return server ? server.closedDates : [];
   }
 
-  function closedOn(iso) {
-    return !!server && server.closedDates.indexOf(iso) >= 0;
-  }
-
-  // Is this location taking online orders right now? Ordering on, location
-  // enabled, an open day that isn't a closed date, and between opening and
-  // the last moment an ASAP order is ready by the last slot. (The Worker
-  // checks the same.)
-  function openNow(id, now) {
-    const hours = LOCATIONS[id].hours;
-    return orderingOn() && storeEnabled(id) &&
-      hours.days.indexOf(now.weekday) >= 0 && !closedOn(now.iso) &&
-      now.minutes >= toMinutes(hours.open) &&
-      now.minutes + CONFIG.kitchenLeadMinutes <= toMinutes(hours.close) - CONFIG.lastSlotBeforeClose;
+  // Why a store can't take an order now (section 0b), or { ok: true }:
+  // ordering on, store enabled, an open day that isn't a holiday or closed
+  // date, from opening until 17:30. (The Worker checks the same.)
+  function orderingNow(id, now) {
+    if (!orderingOn() || !storeEnabled(id)) return { ok: false, reason: 'off' };
+    return orderingWindow(LOCATIONS[id].hours, now, closedDates());
   }
 
   function canOrderNow() {
-    const now = torontoNow();
-    return enabledStores().some(function (id) { return openNow(id, now); });
+    const now = torontoNow(new Date());
+    return enabledStores().some(function (id) { return orderingNow(id, now).ok; });
   }
 
-  // Today's pickup times while the location is open, else null: ASAP, and
-  // a slot every 15 minutes from kitchenLeadMinutes from now up to
-  // lastSlotBeforeClose before closing
+  // Today's pickup times while the store takes orders, else null: ASAP, and
+  // a slot every 15 minutes from 20 minutes from now up to 17:45
   function pickupDay(id) {
-    const now = torontoNow();
-    if (!openNow(id, now)) return null;
-    const step = CONFIG.slotMinutes;
-    const last = toMinutes(LOCATIONS[id].hours.close) - CONFIG.lastSlotBeforeClose;
-    const slots = [];
-    for (let t = Math.ceil((now.minutes + CONFIG.kitchenLeadMinutes) / step) * step; t <= last; t += step) slots.push(t);
-    return { iso: now.iso, asap: true, slots: slots };
+    const now = torontoNow(new Date());
+    if (!orderingNow(id, now).ok) return null;
+    return { iso: now.iso, asap: true, slots: pickupSlots(LOCATIONS[id].hours, now.minutes) };
   }
 
   // When the location next takes orders: 'today at 10:30 AM' or
-  // 'Monday, November 9 at 10:30 AM' (skipping closed dates)
+  // 'Monday, November 9 at 10:30 AM' (skipping holidays and closed dates)
   function nextOpening(id) {
     const hours = LOCATIONS[id].hours;
     const open = toMinutes(hours.open);
-    const now = torontoNow();
+    const now = torontoNow(new Date());
+    const today = Date.parse(now.iso + 'T00:00:00Z');
     for (let n = 0; n < CONFIG.daysAhead; n++) {
-      const date = new Date(now.date.getTime() + n * 86400000);
-      if (hours.days.indexOf(date.getUTCDay()) < 0 || closedOn(date.toISOString().slice(0, 10))) continue;
+      const date = new Date(today + n * DAY);
+      if (hours.days.indexOf(date.getUTCDay()) < 0 || closureOn(isoDate(date.getTime()), closedDates())) continue;
       if (n === 0 && now.minutes >= open) continue;
       return (n === 0 ? 'today' : date.toLocaleDateString('en-CA', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' })) +
         ' at ' + timeLabel(open);
@@ -923,13 +1021,21 @@
     return null;
   }
 
-  // Why nothing can be ordered right now (paused, or closed with the next
-  // opening), or '' when ordering is open. Shown above the menu.
+  // Why nothing can be ordered right now, or '' when ordering is open.
+  // Shown above the menu, and under Pay if the page was left open too long.
   const noticeEl = $('[data-order-notice]');
 
   function closedMessage() {
     if (canOrderNow()) return '';
     if (!orderingOn()) return 'Online ordering is paused, please call ' + CONFIG.phone + '.';
+    const now = torontoNow(new Date());
+    const why = enabledStores().map(function (id) { return orderingNow(id, now); });
+    const holiday = why.filter(function (w) { return w.reason === 'holiday'; })[0];
+    if (holiday) return 'Closed today for ' + holiday.holiday + '. Please call ' + CONFIG.phone + '.';
+    if (why.some(function (w) { return w.reason === 'after'; })) {
+      const hours = LOCATIONS[enabledStores()[0]].hours;
+      return 'Online ordering closes at ' + clockText(toMinutes(hours.close) - PICKUP.orderUntilBeforeClose) + '. Please call ' + CONFIG.phone + '.';
+    }
     const next = enabledStores().map(function (id) {
       const when = nextOpening(id);
       return when ? LOCATIONS[id].name + ' opens for online orders ' + when + '.' : '';
@@ -972,7 +1078,7 @@
       return;
     }
 
-    let html = '<option value="asap">ASAP (about ' + CONFIG.kitchenLeadMinutes + ' minutes)</option>';
+    let html = '<option value="asap">ASAP (about ' + PICKUP.kitchenLeadMinutes + ' minutes)</option>';
     if (day.slots.length) {
       html += '<optgroup label="Today">' + day.slots.map(function (t) {
         return '<option value="' + day.iso + 'T' + hhmm(t) + '">' + timeLabel(t) + '</option>';
@@ -983,7 +1089,8 @@
 
     const hours = LOCATIONS[id].hours;
     timeHint.textContent = 'Same-day pickup. Open today ' + timeLabel(toMinutes(hours.open)) + ' to ' + timeLabel(toMinutes(hours.close)) +
-      '; last pickup ' + timeLabel(toMinutes(hours.close) - CONFIG.lastSlotBeforeClose) + '.';
+      '; online orders until ' + timeLabel(toMinutes(hours.close) - PICKUP.orderUntilBeforeClose) +
+      ', last pickup ' + timeLabel(toMinutes(hours.close) - PICKUP.lastSlotBeforeClose) + '.';
   }
 
   pickupForm.addEventListener('change', function (event) {
@@ -1076,7 +1183,7 @@
       time: asap ? null : value,
       timeText: asap ? 'ASAP' : timeSelect.selectedOptions[0].parentNode.label + ', ' + timeLabel(minutes),
       // When the backend sends the order to the KDS; ASAP goes right away
-      sendToKitchenAt: asap ? 'now' : value.slice(0, 11) + hhmm(minutes - CONFIG.kitchenLeadMinutes),
+      sendToKitchenAt: asap ? 'now' : value.slice(0, 11) + hhmm(minutes - PICKUP.kitchenLeadMinutes),
     };
     goTo('payment');
   });
@@ -1253,6 +1360,12 @@
   payForm.addEventListener('submit', function (event) {
     event.preventDefault();
     if (!pickup || !cart.length || !clover || payButton.disabled) return;
+    // Left open past 17:30, on a holiday, or ordering paused: refuse here
+    // (the Worker refuses too)
+    if (!orderingNow(pickup.location, torontoNow(new Date())).ok) {
+      payStatus.textContent = closedMessage() || 'Online ordering is closed right now. Please call ' + CONFIG.phone + '.';
+      return;
+    }
     if (!pickupStillOffered(pickup)) {
       pickupExpired();
       return;

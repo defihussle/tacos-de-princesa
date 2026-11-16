@@ -91,11 +91,57 @@ website's; the Worker then refuses to charge ("We couldn't price your
 order") rather than charging a different amount, so run `check-clover`
 after every change in Clover.
 
+## Hours, cutoff and holidays
+
+`worker/hours.js` (and the same section "0b" in `js/order.js`; `check-menu`
+fails if they differ):
+
+- Both stores Mon-Fri 10:30-18:00. Online orders from 10:30 until 17:30;
+  from 17:31 the Worker refuses them ("Online ordering closes at 5:30 pm.
+  Please call 647-298-2267."), even if the page was left open.
+- Pickup the same day: ASAP (about 20 minutes) or a 15-minute slot from 20
+  minutes from now up to 17:45.
+- Closed on New Year's Day, Family Day, Good Friday, Victoria Day, Canada
+  Day, Civic Holiday, Labour Day, Thanksgiving, Christmas Day and Boxing
+  Day, worked out for every year in code. A holiday on a weekend closes the
+  next free weekday. The page says "Closed today for <holiday>".
+- `CLOSED_DATES` (comma-separated `YYYY-MM-DD`) adds one-off closures.
+
+## Printing checks and "didn't print" emails
+
+After the customer has their answer, the Worker sends the order to the
+kitchen printer, retries once after ~5 s if Clover refuses, then checks the
+print job ~15 s and ~26 s later (Clover's states: CREATED, PRINTING, FAILED;
+a printed job disappears). If it failed or hasn't printed, ONE email goes to
+every address in `ALERT_EMAILS` with the order, store, pickup time, customer
+and items, and "Print it from the Clover Orders app." No card details.
+
+The last check can't be later than ~26 s: Cloudflare cancels background work
+(`ctx.waitUntil`) 30 s after the response. A check at 60 s or later would
+need a Cloudflare Queue with a delay (consumer Worker), which previews can't
+run.
+
+### Setting up the emails (once, in the Cloudflare dashboard)
+
+1. **Email Routing on tacosprincesa.ca**: Websites > tacosprincesa.ca >
+   Email > Email Routing > Enable. Cloudflare adds its MX and SPF records
+   (the domain has no mail records today, so nothing else is affected).
+2. **Verify each recipient**: Email Routing > Destination addresses > Add
+   `omer@narcostacos.ca`, then click the link in the verification email.
+   Every address added to `ALERT_EMAILS` later must be verified the same way.
+3. The sender `alerts@tacosprincesa.ca` (`ALERT_FROM`) needs no mailbox.
+4. Redeploy (push to the branch for previews). `/api/health` shows
+   `alerts: { recipients, sender, binding }`.
+
+Adding a recipient: verify the address (step 2), then add it to
+`ALERT_EMAILS` in `wrangler.toml` (`[vars]`, `[previews.vars]`,
+`[env.livetest.vars]`), comma-separated, and deploy. No code change.
+
 ## Where each deployment gets its settings
 
 | Deployment | Worker | Settings | Private token secret |
 |---|---|---|---|
-| Production (main) | `tacos-de-princesa` | `[vars]` | Workers > tacos-de-princesa > Settings > Variables and Secrets |
+| Production (main; tacosprincesa.ca only, `workers_dev = false`) | `tacos-de-princesa` | `[vars]` | Workers > tacos-de-princesa > Settings > Variables and Secrets |
 | Previews (other branches) | `tacos-de-princesa` previews | `[previews.vars]` (sandbox only) | Settings > Previews base config, or `wrangler preview secret put` |
 | Private live test | `tacos-de-princesa-livetest` | `[env.livetest.vars]` | `npx wrangler secret put CLOVER_PRIVATE_TOKEN --env livetest` |
 
@@ -110,7 +156,8 @@ live Clover settings, for real low-value orders before launch.
 
 1. Fill in `[env.livetest.vars]`: live `CLOVER_MERCHANT_ID`,
    `CLOVER_PUBLIC_KEY`, `CLOVER_TAX_RATE_ID` (HST 13%) and
-   `CLOVER_ORDER_TYPE_ID` ("Online Pickup").
+   `CLOVER_ORDER_TYPE_ID` (order type "Website Pick Up 1 York",
+   `DR9JRZ31WB6Y4`).
 2. `npx wrangler secret put CLOVER_PRIVATE_TOKEN --env livetest`
 3. `npx wrangler deploy --env livetest`
 4. Open `https://tacos-de-princesa-livetest.<subdomain>.workers.dev/api/health`;
@@ -124,8 +171,9 @@ team can open it.
 ## Going live (production)
 
 1. Clover (live merchant, One York): Ecommerce API token ("Hosted iFrame +
-   API/SDK") for the public and private keys; HST 13% tax rate; an "Online
-   Pickup" order type. Merchant currency must be CAD. Run
+   API/SDK") for the public and private keys; HST 13% tax rate
+   (`SCA3PKB974QJJ`); order type "Website Pick Up 1 York" (`DR9JRZ31WB6Y4`).
+   Merchant currency must be CAD. Run
    `check-clover.mjs` (above): every website dish must be linked.
 2. `wrangler.toml` `[vars]`: `CLOVER_ENV = "production"`,
    `CLOVER_CURRENCY = "cad"`, live `CLOVER_MERCHANT_ID`,

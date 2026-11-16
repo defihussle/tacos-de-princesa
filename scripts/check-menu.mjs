@@ -6,6 +6,8 @@
 // option has a Clover ID, no ID is left over, and each modifier's price is
 // the website option's price (Single Taco: the dish's price, see
 // PRICE_ON_OPTION). Prices against Clover itself: scripts/check-clover.mjs.
+// And the opening hours, ordering cutoff, pickup slots and holidays: section
+// "0b" of js/order.js and worker/hours.js must give the same results.
 //
 // Run before every merge to main (and after any menu change):
 //   node scripts/check-menu.mjs
@@ -18,6 +20,7 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const worker = await import(pathToFileURL(join(root, 'worker/menu.js')).href);
 const { CLOVER_IDS, PRICE_ON_OPTION } = await import(pathToFileURL(join(root, 'worker/clover-ids.js')).href);
+const hours = await import(pathToFileURL(join(root, 'worker/hours.js')).href);
 
 // The page's menu: section 1 of js/order.js run on its own (it has no
 // browser code), giving its GROUPS and ITEMS
@@ -90,11 +93,54 @@ for (const key of Object.keys(ids.options)) {
   if (!websiteOptions.has(key)) problems.push(`clover-ids: option ${key} isn't on the website`);
 }
 
+// Hours, cutoff, pickup and holidays: the page's section 0b against worker/hours.js
+const h0 = source.indexOf('/* ---- 0b. Hours, pickup and holidays');
+const h1 = source.indexOf('/* ---- 0c.');
+if (h0 < 0 || h1 < h0) {
+  problems.push('couldn’t find section "0b. Hours, pickup and holidays" in js/order.js');
+} else {
+  const pageHours = new Function(source.slice(h0, h1) +
+    ';return { LOCATIONS, PICKUP, holidayClosures, closureOn, orderingWindow, pickupSlots, torontoNow };')();
+  const stores = new Set([...Object.keys(pageHours.LOCATIONS), ...Object.keys(hours.HOURS)]);
+  for (const id of stores) {
+    const pg = pageHours.LOCATIONS[id] && pageHours.LOCATIONS[id].hours;
+    if (!same(pg, hours.HOURS[id])) problems.push(`hours for ${id}: page ${JSON.stringify(pg)}, worker ${JSON.stringify(hours.HOURS[id])}`);
+  }
+  if (!same(pageHours.PICKUP, hours.PICKUP)) problems.push(`pickup rules: page ${JSON.stringify(pageHours.PICKUP)}, worker ${JSON.stringify(hours.PICKUP)}`);
+  for (let year = 2024; year <= 2060; year++) {
+    if (!same(pageHours.holidayClosures(year), hours.holidayClosures(year))) problems.push(`holidays ${year} differ`);
+  }
+  // Every day from Nov 2026 to Dec 2028, around the clock, with a one-off closure
+  const closed = ['2027-03-03'];
+  const minutes = [0, 629, 630, 631, 900, 1049, 1050, 1051, 1060, 1065, 1066, 1080, 1439];
+  for (let m = 600; m <= 1110; m += 5) minutes.push(m);
+  let diffs = 0;
+  for (let day = Date.UTC(2026, 10, 1); day <= Date.UTC(2028, 11, 31); day += 86400000) {
+    const iso = new Date(day).toISOString().slice(0, 10);
+    const weekday = new Date(day).getUTCDay();
+    for (const id of stores) {
+      const hp = pageHours.LOCATIONS[id].hours, hw = hours.HOURS[id];
+      for (const min of minutes) {
+        const now = { iso, weekday, minutes: min };
+        if (!same(pageHours.orderingWindow(hp, now, closed), hours.orderingWindow(hw, now, closed)) ||
+            !same(pageHours.pickupSlots(hp, min), hours.pickupSlots(hw, min))) {
+          if (diffs++ < 5) problems.push(`ordering/pickup rules differ for ${id} on ${iso} at minute ${min}`);
+        }
+      }
+    }
+  }
+  // Toronto clock, including the daylight-saving switches
+  for (const at of ['2026-11-01T05:30:00Z', '2026-11-01T06:30:00Z', '2027-03-14T06:59:00Z', '2027-03-14T07:01:00Z', '2027-07-01T22:31:00Z']) {
+    if (!same(pageHours.torontoNow(new Date(at)), hours.torontoNow(new Date(at)))) problems.push(`Toronto time differs at ${at}`);
+  }
+}
+
 if (problems.length) {
   console.error(`Menu check FAILED (${problems.length}):\n  ` + problems.join('\n  '));
   process.exit(1);
 }
 const sandbox = CLOVER_IDS.sandbox;
 console.log(`Menu check passed: ${Object.keys(page.ITEMS).length} items, ${Object.keys(page.GROUPS).length} option groups, tax ${pageTax}; ` +
+  `hours, cutoff, pickup slots and holidays match; ` +
   `production Clover IDs for all ${Object.keys(ids.items).length} items and ${Object.keys(ids.options).length} options ` +
   `(sandbox: ${Object.keys(sandbox.items).length} items, ${Object.keys(sandbox.options).length} options).`);
