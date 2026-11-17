@@ -1448,19 +1448,21 @@
     }).then(function (response) {
       return response.json().catch(function () { return {}; });
     }).then(function (result) {
-      if (result.success) {
+      if (result && result.success) {
         payStatus.textContent = '';
         placeOrder(result, lines, details);
-      } else if (result.code === 'payment_unconfirmed') {
-        // The Worker couldn't confirm the charge. Never let them pay again.
-        lockPay('<strong>We couldn’t confirm your payment.</strong> Please don’t try again or re-order — ' +
-          'call us and we’ll check right away so you aren’t charged twice.<br>' + callLink());
-      } else {
-        // A decline or card-field problem: keep today's behaviour — the small
-        // status line, and Pay stays usable so they can fix the card and retry.
+      } else if (result && result.noCharge === true) {
+        // The Worker is certain no charge was made (decline, bad card, order
+        // not placed, etc.): keep today's behaviour — the small status line,
+        // and Pay stays usable so they can fix the card and retry.
         payStatus.textContent = (result.error || 'Payment didn’t go through and no charge was made. Please try again.') +
           // Sandbox/preview only (the Worker never sends it in production)
           (result.detail ? ' [Sandbox: ' + result.detail + ']' : '');
+      } else {
+        // Unconfirmed, a non-JSON/blank reply, or any shape we don't recognise:
+        // we can't be sure no charge was made, so fail closed and lock Pay.
+        lockPay('<strong>We couldn’t confirm your payment.</strong> Please don’t try again or re-order — ' +
+          'call us and we’ll check right away so you aren’t charged twice.<br>' + callLink());
       }
     }, function () {
       // No answer at all: the order may or may not have gone through, so lock Pay.
