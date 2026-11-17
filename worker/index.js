@@ -15,7 +15,12 @@
    open), prices the cart from worker/menu.js (browser prices are never
    trusted), creates a Clover atomic order with the store's settings, pays
    it with the card token, then sends it to the kitchen printer. An order
-   that isn't paid is deleted, so it never reaches the kitchen.
+   that isn't paid is deleted, so it never reaches the kitchen. Clover calls
+   that are safe to repeat are retried on a rate-limit answer; the pay call is
+   retried once (same idempotency key). If a pay answer stays unclear, the
+   customer is told to call us (never to re-order) and the order is reconciled
+   in the background: paid -> printed, unpaid -> deleted, unknown -> left; and
+   staff are emailed. Stranded unpaid orders (can't be deleted) also email staff.
    Online orders are taken Mon-Fri from opening (10:30) until 17:30, never on
    holidays (worker/hours.js); pickup is the same day, ASAP or a 15-minute
    slot up to 17:45.
@@ -87,9 +92,32 @@ const LOCATIONS = {
 // A slot offered a few minutes ago may now be slightly too soon
 const SLOT_GRACE_MINUTES = 10;
 
+// Create and pay call timeouts (ms). The customer waits for these, so they're
+// kept short: the pay call can be attempted twice, so its cap is the smaller.
+const CREATE = { timeoutMs: 8000 };
+const PAY = { timeoutMs: 6000 };
+
+// Retry Clover calls that are safe to repeat (create, print, order reads,
+// delete) when Clover rate-limits us: up to RETRY.attempts tries total, short
+// backoff, honouring Retry-After (capped). Clover allows ~16 req/s and 5
+// concurrent per token, so a lunch-rush burst can be briefly throttled (429);
+// a quick retry rides it out. Never used for the pay call (see createOrder).
+const RETRY = { attempts: 3, backoffMs: [250, 750], retryAfterCapMs: 2000 };
+
 // Printing (see the header): Clover call timeout, retry delay, and when the
-// job is checked (ms after the response). Must finish within 30 s.
-const PRINT = { timeoutMs: 6000, retryAfterMs: 5000, checksMs: [15000, 26000] };
+// job is checked (ms after printing). Must finish within 30 s of the response.
+// checksReconcileMs/reconcileRetryMs are used when printing happens after a
+// background reconcile, which has already spent part of the 30 s budget.
+const PRINT = {
+  timeoutMs: 6000, retryAfterMs: 5000, checksMs: [15000, 26000],
+  checksReconcileMs: [5000, 9000], reconcileRetryMs: 2000,
+};
+
+// When a pay answer is unclear, the customer is told we couldn't confirm it;
+// in the background we re-read the order's payment state a few times over
+// ~13 s, then settle it (print / delete / leave). This, plus any print checks
+// that follow a recovered order, must fit inside Cloudflare's ~30 s waitUntil.
+const RECONCILE = { checksMs: [3000, 8000, 13000], readTimeoutMs: 4000 };
 
 const LIMITS = {
   bodyBytes: 20000, linesMax: 30, qtyMax: 20, itemsMax: 60, modsMax: 30,
@@ -316,7 +344,9 @@ async function createOrder(request, env, url, ctx) {
   };
   if (s.orderTypeId) orderCart.orderType = { id: s.orderTypeId };
 
-  const created = await clover(merchantUrl + '/atomic_order/orders', auth, { orderCart: orderCart });
+  const created = await cloverRetry(function () {
+    return clover(merchantUrl + '/atomic_order/orders', auth, { orderCart: orderCart }, 'POST', CREATE.timeoutMs);
+  });
   const orderId = created.ok && created.data && created.data.id;
   if (!orderId) {
     console.error('create-order: atomic order failed', store, created.status, created.error);
@@ -326,49 +356,75 @@ async function createOrder(request, env, url, ctx) {
   // Clover's total should match ours; if not, don't charge
   if (typeof created.data.total === 'number' && Math.abs(created.data.total - order.total) > 1) {
     console.error('create-order: total mismatch', orderId, 'clover', created.data.total, 'ours', order.total);
-    await deleteUnpaid(orderUrl(orderId), auth);
+    await deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, order.total, 'The order total did not match Clover');
     return json({ success: false, error: 'We couldn’t price your order and no charge was made. Please call us at ' + PHONE + '.' }, 500);
   }
   const amount = typeof created.data.total === 'number' ? created.data.total : order.total;
 
-  // 2. Pay it. The clv_ token is single-use, so a retry can't charge twice.
-  const paid = await clover(urls.ecom + '/v1/orders/' + encodeURIComponent(orderId) + '/pay', Object.assign({
+  // 2. Pay it. The clv_ token is single-use, so even if a first attempt
+  // charged and we retry, the second can't charge again (it gets
+  // token_already_used). One Idempotency-Key is made here and reused on the
+  // retry: Clover documents it for the create-a-charge family; pay-for-an-order
+  // isn't documented to honour it, so we never trust the retry's own answer —
+  // after any retry the real outcome is confirmed by reading the order below.
+  const payUrl = urls.ecom + '/v1/orders/' + encodeURIComponent(orderId) + '/pay';
+  const payHeaders = Object.assign({
     'idempotency-key': crypto.randomUUID(),
     'x-forwarded-for': request.headers.get('cf-connecting-ip') || '',
     'user-agent': request.headers.get('user-agent') || 'tacos-de-princesa',
-  }, auth), {
+  }, auth);
+  const payBody = {
     source: order.source,
     amount: amount,
     currency: env.CLOVER_CURRENCY || 'cad',
     ecomind: 'ecom',
     metadata: { delete_order_on_failure: true },
-  });
+  };
+
+  let paid = await clover(payUrl, payHeaders, payBody, 'POST', PAY.timeoutMs);
+  // Retry ONCE, same key, on an unclear answer (timeout/network, 429, 5xx).
+  // Never retry a clear card decline.
+  let retried = false;
+  if (!paid.ok && payUnclear(paid)) {
+    retried = true;
+    const backoff = paid.retryAfter != null ? Math.min(paid.retryAfter, RETRY.retryAfterCapMs) : 500;
+    console.error('create-order: pay unclear (HTTP ' + paid.status + '), retrying once with the same idempotency key', orderId);
+    await sleep(backoff);
+    paid = await clover(payUrl, payHeaders, payBody, 'POST', PAY.timeoutMs);
+  }
 
   if (!paid.ok) {
     console.error('create-order: payment failed', orderId, paid.status, paid.error);
 
-    // No clear answer (timeout, Clover 5xx): the charge may still have gone
-    // through, so look at the order before deleting anything
-    if (paid.status === 0 || paid.status >= 500) {
-      const check = await clover(orderUrl(orderId), auth, null, 'GET');
+    // Unclear if the answer itself was unclear, or if we retried and the second
+    // answer isn't a clean card decline — a retried token_already_used usually
+    // means the FIRST attempt actually charged. Read the order before deleting.
+    if (payUnclear(paid) || (retried && !isCardDecline(paid))) {
+      const check = await cloverRetry(function () { return clover(orderUrl(orderId), auth, null, 'GET', PAY.timeoutMs); });
       if (check.ok && check.data && check.data.paymentState === 'PAID') {
         console.log('create-order: paid (confirmed after an unclear reply)', orderId);
         return paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount);
       }
-      if (!check.ok) {
-        console.error('create-order: PAYMENT STATE UNKNOWN, order left in Clover', orderId, check.status);
-        return json({ success: false, error: 'We couldn’t confirm your payment. Please call us at ' + PHONE + ' before trying again.' }, 502);
+      // Not confirmed paid. Don't delete yet: tell the customer to call us (not
+      // to order again) and reconcile the order in the background.
+      console.error('create-order: PAYMENT UNCONFIRMED ' + orderId + ', reconciling (order read: ' +
+        (check.ok ? (check.data && check.data.paymentState) : 'HTTP ' + check.status) + ')');
+      if (ctx && ctx.waitUntil) {
+        ctx.waitUntil(reconcileUnclear(env, merchantUrl, auth, orderUrl(orderId), orderId, order, amount)
+          .catch(function (error) { console.error('RECONCILE ERROR ' + orderId + ': ' + error); }));
       }
+      return json({ success: false, error: 'We couldn’t confirm your payment. Please don’t order again — call us at ' + PHONE + ' and we’ll check right away.' }, 502);
     }
 
-    // Not paid: make sure it can't reach the kitchen. delete_order_on_failure
-    // doesn't cover every failure (e.g. a currency error).
-    await deleteUnpaid(orderUrl(orderId), auth);
+    // A clear answer that no charge was made: delete the order so it can't
+    // reach the kitchen, and tell the customer. deleteUnpaid alerts staff if
+    // the order can't be removed.
+    await deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'A payment was declined');
 
     // Declines come back as 402 { code: 'card_declined', message: 'DECLINED: …' };
     // Clover's message isn't customer-friendly, so it's only logged
     const error = paid.error || {};
-    const declined = paid.status === 402 || error.code === 'card_declined' || error.type === 'card_error';
+    const declined = isCardDecline(paid);
     const badSource = !declined && (error.code === 'token_already_used' ||
       (error.code === 'invalid_request' && /source/i.test(error.message || '')));
     return json({
@@ -399,18 +455,22 @@ function paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount) {
 // Send the order to the kitchen printer, retry once, then check it really
 // printed: a 200 only means Clover accepted the job (an offline printer
 // accepts it and never prints). Alerts by email if it didn't print.
-async function printAndVerify(env, merchantUrl, auth, orderId, order) {
+async function printAndVerify(env, merchantUrl, auth, orderId, order, opts) {
+  opts = opts || {};
+  const checksMs = opts.checksMs || PRINT.checksMs;
+  const retryMs = opts.retryMs != null ? opts.retryMs : PRINT.retryAfterMs;
   const started = Date.now();
-  const wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, Math.max(0, ms)); }); };
   const where = ' (store ' + order.location + ')';
   const print = function () {
-    return clover(merchantUrl + '/print_event', auth, { orderRef: { id: orderId } }, 'POST', PRINT.timeoutMs);
+    return cloverRetry(function () {
+      return clover(merchantUrl + '/print_event', auth, { orderRef: { id: orderId } }, 'POST', PRINT.timeoutMs);
+    });
   };
 
   let printed = await print();
   if (!(printed.ok && printed.data && printed.data.id)) {
-    console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ', attempt 1: retrying in 5 s', printed.error);
-    await wait(PRINT.retryAfterMs);
+    console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ', attempt 1: retrying in ' + Math.round(retryMs / 1000) + ' s', printed.error);
+    await sleep(retryMs);
     printed = await print();
   }
   const jobId = printed.ok && printed.data && printed.data.id;
@@ -421,8 +481,8 @@ async function printAndVerify(env, merchantUrl, auth, orderId, order) {
   console.log('PRINT SENT ' + orderId + where + ', job ' + jobId);
 
   let state = 'CREATED';
-  for (const at of PRINT.checksMs) {
-    await wait(started + at - Date.now());
+  for (const at of checksMs) {
+    await sleep(started + at - Date.now());
     state = await printState(merchantUrl, auth, jobId);
     if (state === 'DONE') { console.log('PRINTED ' + orderId + ', job ' + jobId); return; }
     if (state === 'FAILED') break;
@@ -441,8 +501,10 @@ async function printAndVerify(env, merchantUrl, auth, orderId, order) {
 const PRINT_STATES = ['CREATED', 'PRINTING', 'FAILED', 'DONE'];
 
 async function printState(merchantUrl, auth, jobId) {
-  const r = await clover(merchantUrl + '/print_event/' + encodeURIComponent(jobId),
-    Object.assign({ 'user-agent': 'tacos-de-princesa' }, auth), null, 'GET', 4000);
+  const r = await cloverRetry(function () {
+    return clover(merchantUrl + '/print_event/' + encodeURIComponent(jobId),
+      Object.assign({ 'user-agent': 'tacos-de-princesa' }, auth), null, 'GET', 4000);
+  });
   if (r.status === 404) return 'DONE';
   if (r.ok && r.data && PRINT_STATES.indexOf(r.data.state) !== -1) return r.data.state;
   return 'UNKNOWN (HTTP ' + r.status + ')';
@@ -509,12 +571,17 @@ async function sendEmail(env, to, subject, text) {
   }
 }
 
-// Delete an unpaid order. 404 means it's already gone (delete_order_on_failure).
-async function deleteUnpaid(url, auth) {
-  const removed = await clover(url, auth, null, 'DELETE');
-  if (!removed.ok && removed.status !== 404) {
-    console.error('create-order: UNPAID ORDER NOT DELETED, remove it in Clover', url.split('/').pop(), removed.status);
-  }
+// Delete an unpaid order so it can't reach the kitchen. 404 means it's already
+// gone (delete_order_on_failure). If it can't be deleted the order is stranded
+// in Clover, so alert staff as well as logging it. Returns true if it's gone.
+async function deleteUnpaid(env, url, auth, orderId, order, amount, reason) {
+  const removed = await cloverRetry(function () { return clover(url, auth, null, 'DELETE', PAY.timeoutMs); });
+  if (removed.ok || removed.status === 404) return true;
+  console.error('create-order: UNPAID ORDER NOT DELETED ' + orderId + ', remove it in Clover, HTTP ' + removed.status);
+  await sendAlert(env, 'Unpaid order ' + orderId + ' could not be removed — delete it in Clover',
+    alertBody(order, orderId, amount, reason + ', but the order could NOT be deleted (HTTP ' + removed.status +
+      '). It may reach the kitchen. Please delete it in the Clover Orders app.'));
+  return false;
 }
 
 // Call Clover. Returns { ok, status, data, error } and never throws; error is
@@ -536,11 +603,117 @@ async function clover(url, headers, body, method, timeoutMs) {
       status: response.status,
       data: data,
       error: response.ok ? null : (data && (data.error || data.message)) || null,
+      retryAfter: parseRetryAfter(response.headers.get('retry-after')),
     };
   } catch (error) {
-    return { ok: false, status: 0, data: null, error: String(error) };
+    return { ok: false, status: 0, data: null, error: String(error), retryAfter: null };
   }
 }
+
+
+/* ---- Retry, timing and reconcile -------------------------------------- */
+
+function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, Math.max(0, ms)); }); }
+function sleepUntil(t) { return sleep(t - Date.now()); }
+
+// Retry-After header -> ms from now, or null (accepts seconds or an HTTP date).
+function parseRetryAfter(header) {
+  if (!header) return null;
+  const secs = Number(header);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const when = Date.parse(header);
+  return Number.isFinite(when) ? Math.max(0, when - Date.now()) : null;
+}
+
+// Retry a Clover call that is safe to repeat when Clover rate-limits us (429,
+// or 503 with a Retry-After): up to RETRY.attempts tries total, short backoff,
+// honouring Retry-After (capped). Only for idempotent/repeatable calls, never
+// for pay.
+async function cloverRetry(fn) {
+  let r;
+  for (let i = 0; i < RETRY.attempts; i++) {
+    r = await fn();
+    const rateLimited = r.status === 429 || (r.status === 503 && r.retryAfter != null);
+    if (!rateLimited || i === RETRY.attempts - 1) return r;
+    const delay = r.retryAfter != null
+      ? Math.min(r.retryAfter, RETRY.retryAfterCapMs)
+      : RETRY.backoffMs[Math.min(i, RETRY.backoffMs.length - 1)];
+    await sleep(delay);
+  }
+  return r;
+}
+
+// An unclear pay answer: timeout/network (0), rate limit (429), or server
+// error (5xx). The charge may or may not have gone through.
+function payUnclear(paid) {
+  return paid.status === 0 || paid.status === 429 || paid.status >= 500;
+}
+
+// A clear card decline: no money moved, safe to delete and tell the customer.
+function isCardDecline(paid) {
+  const e = paid.error || {};
+  return paid.status === 402 || e.code === 'card_declined' || e.type === 'card_error';
+}
+
+// The customer was told we couldn't confirm their payment. Re-read the order's
+// payment state a few times, then settle it: PAID -> print + alert staff;
+// unpaid -> delete + alert staff; unknown -> leave + alert staff. Runs in
+// ctx.waitUntil; this plus any print checks must finish within Cloudflare's
+// ~30 s budget (see RECONCILE / PRINT.checksReconcileMs).
+async function reconcileUnclear(env, merchantUrl, auth, orderUrl, orderId, order, amount) {
+  const started = Date.now();
+  let state = 'unknown';
+  for (const at of RECONCILE.checksMs) {
+    await sleepUntil(started + at);
+    const check = await cloverRetry(function () { return clover(orderUrl, auth, null, 'GET', RECONCILE.readTimeoutMs); });
+    if (check.ok && check.data) {
+      if (check.data.paymentState === 'PAID') { state = 'PAID'; break; }
+      state = 'unpaid';
+    } else {
+      state = 'unknown';
+    }
+  }
+
+  if (state === 'PAID') {
+    console.log('RECONCILE ' + orderId + ': PAID after an unclear reply — alerting staff, printing');
+    await sendAlert(env, 'Order ' + orderId + ' was paid after the customer was told it couldn’t be confirmed',
+      alertBody(order, orderId, amount, 'This order WAS paid, but the customer saw “we couldn’t confirm your payment.” ' +
+        'Please call them at ' + order.pickup.phone + ' to confirm the pickup. The kitchen ticket is printing now.'));
+    await printAndVerify(env, merchantUrl, auth, orderId, order, { checksMs: PRINT.checksReconcileMs, retryMs: PRINT.reconcileRetryMs });
+    return;
+  }
+  if (state === 'unpaid') {
+    console.log('RECONCILE ' + orderId + ': still unpaid — deleting the order');
+    const gone = await deleteUnpaid(env, orderUrl, auth, orderId, order, amount, 'A payment was never confirmed');
+    if (gone) {
+      await sendAlert(env, 'Unconfirmed order ' + orderId + ' was removed',
+        alertBody(order, orderId, amount, 'The payment was never confirmed, so this order was removed and did not reach the kitchen. ' +
+          'No charge should have gone through; check Clover if the customer calls.'));
+    }
+    return;
+  }
+  console.error('RECONCILE ' + orderId + ': payment state still unknown — leaving the order, alerting staff');
+  await sendAlert(env, 'Order ' + orderId + ' — payment unconfirmed, please check Clover',
+    alertBody(order, orderId, amount, 'We could not confirm whether this order was paid, so it was LEFT in Clover. ' +
+      'Please check it in the Clover Orders app: if it’s paid, call the customer at ' + order.pickup.phone + '; if not, delete it.'));
+}
+
+// Shared body for a staff alert email. Never any card data (the Worker only
+// ever holds a single-use token).
+function alertBody(order, orderId, amount, lead) {
+  const counts = {};
+  order.lineItems.forEach(function (line) { counts[line.label] = (counts[line.label] || 0) + 1; });
+  return [lead, '',
+    'Order: ' + orderId,
+    'Store: ' + LOCATIONS[order.location].label,
+    'Amount: ' + money(amount),
+    'Pickup: ' + order.pickup.when,
+    'Customer: ' + order.pickup.name + ', ' + order.pickup.phone,
+    '', 'Items:',
+  ].concat(Object.keys(counts).map(function (label) { return '- ' + counts[label] + ' x ' + label; })).join('\n');
+}
+
+function money(cents) { return '$' + (Math.round(cents) / 100).toFixed(2); }
 
 
 /* ---- Pricing + validation --------------------------------------------- */
