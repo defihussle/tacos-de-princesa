@@ -723,6 +723,7 @@
   const cartEl = $('[data-cart]');
   const linesEl = $('[data-cart-lines]');
   const checkoutBtn = $('[data-checkout]');
+  const cartClosedEl = $('[data-cart-closed]');
   const bar = $('[data-cart-bar]');
   const barBtn = $('[data-cart-open]');
 
@@ -769,6 +770,11 @@
     $('[data-total]').textContent = fmt(t.total);
     checkoutBtn.disabled = !cart.length || !canOrderNow();
     renderNotice();
+    // When there are items but ordering is closed, show why under the greyed
+    // Checkout button, not only at the top of the menu.
+    const cartClosed = cart.length ? closedMessage() : '';
+    cartClosedEl.textContent = cartClosed;
+    cartClosedEl.hidden = !cartClosed;
     $('[data-pay]').textContent = 'Pay ' + fmt(t.total);
 
     // Phone order bar: shown once there's something in the cart
@@ -1262,6 +1268,65 @@
     payNotice.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  /* ---- Turnstile (invisible bot check; token fetched on Pay press) ----- */
+  // The Worker verifies the token before any charge. We render the widget when
+  // the payment step opens, but only run it (turnstile.execute) when Pay is
+  // pressed, so each attempt gets a fresh token (they expire after 5 minutes).
+  let turnstileWidget = null;   // the rendered widget id
+  let turnstilePending = null;  // resolver for the in-flight execute()
+  let turnstileScript = null;   // loads the Turnstile API once
+
+  function loadTurnstile() {
+    if (!server || !server.turnstileSiteKey) return Promise.resolve(false);
+    if (!turnstileScript) {
+      turnstileScript = new Promise(function (resolve) {
+        if (window.turnstile) return resolve(true);
+        const s = document.createElement('script');
+        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        s.async = true; s.defer = true;
+        s.onload = function () { resolve(true); };
+        s.onerror = function () { resolve(false); };
+        document.head.appendChild(s);
+      });
+    }
+    return turnstileScript;
+  }
+
+  function initTurnstile() {
+    if (turnstileWidget !== null || !window.turnstile || !server.turnstileSiteKey) return;
+    try {
+      turnstileWidget = window.turnstile.render('[data-turnstile]', {
+        sitekey: server.turnstileSiteKey,
+        action: 'order',
+        execution: 'execute',       // run only when we call execute()
+        appearance: 'interaction-only',
+        callback: function (token) { settleTurnstile(token); },
+        'error-callback': function () { settleTurnstile(null); return true; },
+        'expired-callback': function () { settleTurnstile(null); },
+        'timeout-callback': function () { settleTurnstile(null); },
+      });
+    } catch (e) { turnstileWidget = null; }
+  }
+
+  function settleTurnstile(token) {
+    if (turnstilePending) { const resolve = turnstilePending; turnstilePending = null; resolve(token || null); }
+  }
+
+  // Resolve with a fresh token for this attempt, or null if Turnstile isn't set
+  // up / couldn't run (the Worker then allows it only in sandbox).
+  function turnstileToken() {
+    if (turnstileWidget === null || !window.turnstile) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      turnstilePending = resolve;
+      try {
+        window.turnstile.reset(turnstileWidget);
+        window.turnstile.execute('[data-turnstile]', { action: 'order' });
+      } catch (e) { settleTurnstile(null); }
+      // Client-side safety net: don't hang the Pay button if no callback fires.
+      setTimeout(function () { settleTurnstile(null); }, 20000);
+    });
+  }
+
   // Clover element type -> mount point (its error line is '#<id>-errors')
   const CARD_FIELDS = [
     { type: 'CARD_NUMBER', id: 'card-number' },
@@ -1321,6 +1386,10 @@
   // Mount the card fields with the pickup store's public key when the
   // payment step opens (again if the customer switched stores)
   function startClover() {
+    // Render the bot check as the payment step opens (the token is fetched
+    // later, when Pay is pressed).
+    loadTurnstile().then(function (ok) { if (ok) initTurnstile(); });
+
     const id = pickup.location;
     if (cloverStore === id) return;
     cloverStore = id;
@@ -1418,7 +1487,10 @@
         return;
       }
       CARD_FIELDS.forEach(function (field) { setFieldError(field, ''); });
-      return sendOrder(result.token, lines, details);
+      // Fresh Turnstile token for this attempt, then place the order.
+      return turnstileToken().then(function (turnstile) {
+        return sendOrder(result.token, turnstile, lines, details);
+      });
     }, function () {
       payStatus.textContent = 'We couldn’t reach the payment service. Please try again.';
     }).then(function () {
@@ -1428,12 +1500,13 @@
 
   // POST the order to the Worker. Prices and totals aren't sent: the Worker
   // works them out from its own copy of the menu.
-  function sendOrder(source, lines, details) {
+  function sendOrder(source, turnstile, lines, details) {
     return fetch('/api/create-order', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         source: source,
+        turnstile: turnstile,
         cart: lines.map(function (line) {
           return { item: line.item, qty: line.qty, mods: line.mods, note: line.note };
         }),

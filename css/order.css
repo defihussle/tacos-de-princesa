@@ -666,6 +666,20 @@ html:has(.item-dialog[open]) {
   display: none;
 }
 
+/* The "ordering is closed" reason under the greyed Checkout button. */
+.cart__closed {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--muted);
+}
+
+.cart__closed[hidden] {
+  display: none;
+}
+
 
 /* ==========================================================================
    7. Phone order bar + cart sheet (below 900px)

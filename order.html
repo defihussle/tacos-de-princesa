@@ -188,6 +188,10 @@
                 <div class="pay-field__box" id="card-postal" role="group" aria-labelledby="card-postal-label"></div>
                 <p class="field__error" id="card-postal-errors" role="alert"></p>
               </div>
+              <!-- Cloudflare Turnstile (invisible): js/order.js renders it here
+                   and runs it when Pay is pressed, for a fresh token per order.
+                   The Worker verifies the token before any charge. -->
+              <div class="pay-turnstile" data-turnstile></div>
               <button class="btn btn--primary btn--block pay-card__submit" type="submit" data-pay>Pay</button>
             </form>
 
@@ -264,6 +268,9 @@
             <div class="cart__total"><dt>Total</dt><dd data-total>$0.00</dd></div>
           </dl>
           <button class="btn btn--primary btn--block" type="button" disabled data-checkout>Checkout</button>
+          <!-- When ordering is closed, the reason shows here under the greyed
+               Checkout button (js/order.js renderCart). -->
+          <p class="cart__closed" role="status" data-cart-closed hidden></p>
           <button class="text-link cart__more" type="button" data-go="menu">Add more items</button>
         </div>
       </aside>
