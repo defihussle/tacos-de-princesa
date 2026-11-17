@@ -155,10 +155,12 @@ A separate Worker on its workers.dev address only, with the restaurant's
 live Clover settings, for real low-value orders before launch.
 
 1. Fill in `[env.livetest.vars]`: live `CLOVER_MERCHANT_ID`,
-   `CLOVER_PUBLIC_KEY`, `CLOVER_TAX_RATE_ID` (HST 13%) and
+   `CLOVER_PUBLIC_KEY`, `CLOVER_TAX_RATE_ID` (HST 13%),
    `CLOVER_ORDER_TYPE_ID` (order type "Website Pick Up 1 York",
-   `DR9JRZ31WB6Y4`).
-2. `npx wrangler secret put CLOVER_PRIVATE_TOKEN --env livetest`
+   `DR9JRZ31WB6Y4`), and `TURNSTILE_SITE_KEY` (real Turnstile site key — the
+   widget's hostnames must include this workers.dev host).
+2. Secrets: `npx wrangler secret put CLOVER_PRIVATE_TOKEN --env livetest`, and
+   `npx wrangler secret put TURNSTILE_SECRET --env livetest`.
 3. `npx wrangler deploy --env livetest`
 4. Open `https://tacos-de-princesa-livetest.<subdomain>.workers.dev/api/health`;
    every store should be `ready` with `taxRate: ok` and `orderType: ok`.
@@ -178,11 +180,20 @@ team can open it.
 2. `wrangler.toml` `[vars]`: `CLOVER_ENV = "production"`,
    `CLOVER_CURRENCY = "cad"`, live `CLOVER_MERCHANT_ID`,
    `CLOVER_PUBLIC_KEY`, `CLOVER_TAX_RATE_ID`, `CLOVER_ORDER_TYPE_ID`
-   (required in production: orders are refused without it).
-3. Production secret `CLOVER_PRIVATE_TOKEN` = live private token.
-4. The rate-limiting rule below.
-5. `ORDERING_OPEN = "true"` once `/api/health` shows `ready: true`.
-6. `order.html`: remove the `noindex` robots tag.
+   (required in production: orders are refused without it), and the real
+   `TURNSTILE_SITE_KEY`.
+3. Production secrets (Settings > Variables and Secrets): `CLOVER_PRIVATE_TOKEN`
+   (live private token), `TURNSTILE_SECRET` (real Turnstile secret), and
+   optionally `HEALTH_TOKEN` (to read the detailed `/api/health` in production
+   via the `x-health-token` header; otherwise production shows only
+   `ready` + `commit`).
+4. Turnstile, the per-IP rate limits and Clover's fraud tools — see "Bots and
+   card testers" below. Confirm `/api/health` shows `turnstile: true` and
+   `rateLimiter: true`.
+5. Security headers / CSP — see "Security headers and CSP": confirm **no CSP
+   errors** on the livetest order page's console.
+6. `ORDERING_OPEN = "true"` once `/api/health` shows `ready: true`.
+7. `order.html`: remove the `noindex` robots tag.
 
 Adding King St W later: add `king-st-w` to `STORES_ENABLED`, and if it
 uses different Clover values, set the `_KING_ST_W` versions (for example
@@ -195,29 +206,61 @@ Variables, then deploy) — the Worker refuses orders and the page says
 Closed days (PATH holidays): add them to `CLOSED_DATES`, comma-separated,
 e.g. `"2026-12-25,2026-12-28,2027-01-01"`.
 
-## Rate limiting (production only, not previews)
+## Bots and card testers
 
-Without it, a script can call `/api/create-order` as often as it likes
-(Clover's reCAPTCHA on the card form is the only bot check). In the
-Cloudflare dashboard for the site's domain: **Security > WAF > Rate limiting
-rules > Create rule**:
+Three layers guard `/api/create-order` (the only place a charge happens):
 
-- **If incoming requests match**: `(http.request.uri.path eq "/api/create-order" and http.request.method eq "POST")`
-- **With the same characteristics**: IP
-- **When rate exceeds**: 5 requests per 1 minute (on the Free plan the only
-  period is 10 seconds: use 3 requests per 10 seconds)
-- **Then take action**: Block, for 10 minutes if the plan allows (Free: 10 seconds)
+1. **Turnstile** — our own check on the endpoint, fail-closed in production.
+   Create the widget in the Cloudflare dashboard > **Turnstile > Add widget**:
+   - Hostnames: `tacosprincesa.ca`, `www.tacosprincesa.ca`, and the livetest
+     `*.workers.dev` host.
+   - Mode: Managed (invisible works too).
+   - Put the **Site key** in `[vars]` `TURNSTILE_SITE_KEY` (and
+     `[env.livetest.vars]`). Put the **Secret key** in the dashboard as the
+     secret `TURNSTILE_SECRET` (Settings > Variables and Secrets), never in
+     `wrangler.toml`. Production refuses Cloudflare's test keys, so real keys
+     are required; `/api/health` shows `turnstile: true` only when real-ready.
 
-Notes:
-- WAF rules only cover traffic through the domain. The production Worker's
-  `*.workers.dev` address bypasses them: turn it off (Workers >
-  tacos-de-princesa > Settings > Domains & Routes > workers.dev: Disable,
-  or `workers_dev = false` at the top of `wrangler.toml`) once the domain
-  serves the site.
-- Previews and `livetest` live on workers.dev, so the rule doesn't touch
-  them (as intended).
-- A real customer places 1–2 orders, plus maybe a retry after a decline, so
-  5 a minute leaves room.
+2. **Per-IP rate limits** in the Worker — the `RATE_LIMITER` Durable Object
+   (bound in `wrangler.toml`, SQLite-backed so it runs on the Free plan). Keyed
+   by the IPv4 address or the IPv6 /64, and tunable via `[vars]` in every
+   environment:
+   - `RATE_ORDER_LIMIT` (20) / `RATE_ORDER_WINDOW_S` (60): generous — PATH
+     offices share one IP.
+   - `RATE_FAIL_LIMIT` (5) / `RATE_FAIL_WINDOW_S` (600): strict — failed
+     payments (card testing). Over the limit the Worker answers "Too many
+     attempts…" and emails staff once per IP per window. `/api/health` shows
+     `rateLimiter: true` when bound. (A Cloudflare WAF rate-limiting rule on the
+     domain is optional belt-and-suspenders; the Worker's own limits are the
+     primary defense and cover every environment, including workers.dev.)
+
+3. **Clover's own fraud tools** on the live merchant (Clover Merchant Dashboard
+   > Settings > View all settings > **Ecommerce**):
+   - **Ecommerce API Tokens > reCAPTCHA Settings**: tick "Use reCAPTCHA for all
+     transactions made through iFrame embedded page".
+   - **Fraud Tools > Edit**: Risk score threshold **Medium**; turn on the
+     **AVS postal-code** block; **velocity limit** ~5 failed attempts;
+     **Transaction Limits** ~5 per card/day and ~15 per IP/day; keep block lists
+     ready (consider blocking non-CA/US countries). Note: Clover's reCAPTCHA is
+     a client-side measure on the card form and is **not** documented to gate
+     token minting, so Turnstile on our endpoint (layer 1) is the real guard.
+
+## Security headers and CSP
+
+The static pages carry security headers and a per-page Content-Security-Policy
+from `_headers` (X-Content-Type-Options nosniff, Referrer-Policy, X-Frame-Options
+DENY, Permissions-Policy off for camera/mic/geolocation, HSTS 6 months); the
+Worker's API responses carry the same basics. The CSP is **enforced** — the
+sandbox Clover hosts, all four card iframes, the reCAPTCHA badge, Turnstile and
+Google Fonts loaded with zero violations on the preview.
+
+- **Phase 5 check (livetest, real Clover):** open the livetest order page, reach
+  the payment step, and confirm the browser console shows **no CSP errors**.
+  This is the only way to prove the production Clover hosts (`checkout.clover.com`,
+  `api.clover.com`, `scl.clover.com`), which are already allow-listed in
+  `_headers`. If a resource is blocked, add its host to the right directive.
+- HSTS has **no** `includeSubDomains` (it would affect every subdomain of
+  tacosprincesa.ca). Add it only after confirming no subdomain needs plain HTTP.
 
 ## Guard main (only main deploys to production)
 

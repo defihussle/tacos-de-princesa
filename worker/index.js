@@ -48,9 +48,11 @@
      Ordering open, enabled stores and, per store, which settings are set
      and a live Clover check of its tax rate and order type: yes/no and
      ok/fail only, never values. Plus the commit it was built from
-     (BUILD_COMMIT, set by scripts/deploy-preview.sh), and menu: whether
-     every website item and option has a Clover ID for this environment
-     (missing keys listed) and whether each store's merchant has those IDs.
+     (BUILD_COMMIT), menu readiness, and the bot defences (turnstile ready,
+     rateLimiter bound). The Clover checks are cached ~5 min and the endpoint
+     is rate-limited so it can't be used to spam Clover. In production the
+     public answer is only { ready, commit } unless the x-health-token header
+     matches HEALTH_TOKEN (or use livetest behind Access).
 
    SETTINGS (wrangler.toml [vars] / [previews.vars] / [env.livetest.vars])
      ORDERING_OPEN       "true" to take orders; anything else pauses them
@@ -60,10 +62,22 @@
                          "2026-12-25,2026-12-28"; empty for none
      CLOVER_ENV          "sandbox" or "production"
      CLOVER_CURRENCY     "usd" (sandbox test merchant) or "cad"
-     ALERT_EMAILS        who gets "order didn't print" emails, comma-separated
-                         (each must be a verified Email Routing destination)
+     ALERT_EMAILS        who gets "order didn't print" / rate-limit / unconfirmed
+                         emails, comma-separated (each a verified Email Routing
+                         destination)
      ALERT_FROM          the sender, an address on tacosprincesa.ca
-   Binding ALERT_EMAIL (send_email) sends them.
+     TURNSTILE_SITE_KEY  public Turnstile site key (sent to the page). Production
+                         must use a real key; it refuses Cloudflare's test keys.
+     HEALTH_TOKEN        (production) secret for the DETAILED /api/health via the
+                         x-health-token header; without it, prod shows only
+                         ready + commit
+     RATE_ORDER_LIMIT / RATE_ORDER_WINDOW_S  orders per IP per window (20 / 60 s)
+     RATE_FAIL_LIMIT  / RATE_FAIL_WINDOW_S   failed payments per IP (5 / 600 s)
+   Bindings: ALERT_EMAIL (send_email) sends the emails; RATE_LIMITER (the
+   RateLimiter Durable Object in worker/ratelimit.js) holds the per-IP limits.
+   Secret TURNSTILE_SECRET verifies Turnstile (never in wrangler.toml).
+   Bots/card-testers: Turnstile then the rate limiter run before any Clover
+   call; the static pages' security headers + CSP are in the _headers file.
    Per store, each of these can be suffixed with the store (_ONE_YORK,
    _KING_ST_W) to override the shared value, e.g. CLOVER_MERCHANT_ID_ONE_YORK:
      CLOVER_MERCHANT_ID, CLOVER_PUBLIC_KEY, CLOVER_TAX_RATE_ID,
