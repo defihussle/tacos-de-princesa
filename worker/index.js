@@ -85,6 +85,11 @@
 import { GROUPS, ITEMS, TAX_RATE } from './menu.js';
 import { CLOVER_IDS } from './clover-ids.js';
 import { HOURS, PICKUP, torontoNow, orderingWindow, pickupSlots, toMinutes, clockText } from './hours.js';
+import { RateLimiter } from './ratelimit.js';
+
+// The per-IP rate limiter Durable Object (bound as RATE_LIMITER in wrangler.toml)
+// must be exported from the Worker's entrypoint.
+export { RateLimiter };
 
 const CLOVER_URLS = {
   sandbox: { api: 'https://apisandbox.dev.clover.com', ecom: 'https://scl-sandbox.dev.clover.com', sdk: 'https://checkout.sandbox.dev.clover.com/sdk.js' },
@@ -160,6 +165,32 @@ const BIG_ORDER = 'That’s a big order! Please call us at ' + PHONE + ' to plac
 const PAUSED = 'Online ordering is paused, please call ' + PHONE + '.';
 // Shown when a payment can't be confirmed: the customer must NOT re-order.
 const UNCONFIRMED = 'We couldn’t confirm your payment. Please don’t order again — call us at ' + PHONE + ' and we’ll check right away.';
+const TOO_MANY = 'Too many attempts. Please wait a few minutes or call us at ' + PHONE + '.';
+const BOT_REFUSED = 'We couldn’t verify your browser. Please refresh the page and try again.';
+
+// Turnstile (a bot check on our own /api/create-order, the only place a charge
+// can happen). The secret is a dashboard secret; the site key is public and
+// sent to the page via /api/config. Preview and sandbox use Cloudflare's
+// documented TEST keys; production must use real keys and refuses test keys.
+const TURNSTILE = {
+  siteverifyUrl: 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+  action: 'order',
+  timeoutMs: 6000,
+};
+// Cloudflare's documented test keys all start with 1x/2x/3x then zeros; real
+// keys start with 0x. Production refuses test keys (fail closed).
+function isTurnstileTestKey(key) { return /^[123]x0{6}/.test(String(key || '')); }
+function posInt(v, d) { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : d; }
+
+// Per-IP rate limits, held in the RATE_LIMITER Durable Object. Tunable via vars
+// in every environment (see wrangler.toml). The order window is generous (PATH
+// offices share one IP); the failed-payment window is strict (card testers).
+function rateLimitSettings(env) {
+  return {
+    orderLimit: posInt(env.RATE_ORDER_LIMIT, 20), orderWindowMs: posInt(env.RATE_ORDER_WINDOW_S, 60) * 1000,
+    failLimit: posInt(env.RATE_FAIL_LIMIT, 5), failWindowMs: posInt(env.RATE_FAIL_WINDOW_S, 600) * 1000,
+  };
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -169,7 +200,10 @@ export default {
       return createOrder(request, env, url, ctx);
     }
     if (url.pathname === '/api/config') return json(config(env));
-    if (url.pathname === '/api/health') return json(await health(env));
+    if (url.pathname === '/api/health') {
+      if (healthRateLimited()) return json({ error: 'Too many requests.' }, 429);
+      return json(await health(env, request));
+    }
     if (url.pathname.startsWith('/api/')) return json({ success: false, error: 'Not found.' }, 404);
     return env.ASSETS.fetch(request);
   },
@@ -272,11 +306,44 @@ function config(env) {
     orderingOpen: orderingOpen(env),
     closedDates: closedDates(env),
     phone: PHONE,
+    // Public Turnstile site key for the page to render the widget ('' = off).
+    turnstileSiteKey: env.TURNSTILE_SITE_KEY || '',
     stores: stores,
   };
 }
 
-async function health(env) {
+// Cache the live Clover checks in /api/health for ~5 min (per isolate) so the
+// endpoint can't be used to spam Clover; a crude per-isolate rate limit caps
+// request volume too.
+const HEALTH = { cacheMs: 300000, rateMax: 60, rateWindowMs: 60000 };
+let healthCache = { at: 0, data: null };
+const healthRate = { windowStart: 0, count: 0 };
+
+function healthRateLimited() {
+  const now = Date.now();
+  if (now - healthRate.windowStart > HEALTH.rateWindowMs) { healthRate.windowStart = now; healthRate.count = 0; }
+  healthRate.count += 1;
+  return healthRate.count > HEALTH.rateMax;
+}
+
+async function cachedHealth(env) {
+  const now = Date.now();
+  if (healthCache.data && now - healthCache.at < HEALTH.cacheMs) return healthCache.data;
+  const data = await computeHealth(env);
+  healthCache = { at: now, data: data };
+  return data;
+}
+
+// Public answer in production is ready + commit only; the full detail needs the
+// HEALTH_TOKEN header (or use livetest behind Cloudflare Access).
+async function health(env, request) {
+  const full = await cachedHealth(env);
+  const authed = !isProduction(env) ||
+    (!!env.HEALTH_TOKEN && request.headers.get('x-health-token') === env.HEALTH_TOKEN);
+  return authed ? full : { ready: full.ready, commit: full.commit };
+}
+
+async function computeHealth(env) {
   const stores = {};
   await Promise.all(enabledStores(env).map(async function (id) {
     const s = storeSettings(env, id);
@@ -310,11 +377,15 @@ async function health(env) {
   const missingIds = missingCloverIds(env);
   return {
     ready: orderingOpen(env) && !missingIds.length && Object.keys(stores).length > 0 &&
-      Object.keys(stores).every(function (id) { return stores[id].ready; }),
+      Object.keys(stores).every(function (id) { return stores[id].ready; }) &&
+      (!isProduction(env) || turnstileReady(env)),
     commit: env.BUILD_COMMIT || 'unknown',
     clover: isProduction(env) ? 'production' : 'sandbox',
     currency: env.CLOVER_CURRENCY || 'cad',
     orderingOpen: orderingOpen(env),
+    // Bot/card-tester defences: Turnstile configured (yes/no), rate limiter bound.
+    turnstile: turnstileReady(env),
+    rateLimiter: !!env.RATE_LIMITER,
     storesEnabled: enabledStores(env),
     closedDates: closedDates(env).length,
     alerts: { recipients: list(env.ALERT_EMAILS).length, sender: !!env.ALERT_FROM, binding: !!env.ALERT_EMAIL },
@@ -334,18 +405,31 @@ async function createOrder(request, env, url, ctx) {
   // before any Clover call, so no charge is possible: noCharge: true.
   if (!orderingOpen(env)) return json({ success: false, noCharge: true, error: PAUSED }, 503);
 
-  // Only the ordering page (same site, JSON) may place orders
-  const origin = request.headers.get('origin');
-  if (origin && origin !== url.origin) return json({ success: false, noCharge: true, error: 'Not allowed.' }, 403);
+  // Only the ordering page (same site, JSON) may place orders. The Origin must
+  // match the site — a missing Origin is now refused too.
+  if (request.headers.get('origin') !== url.origin) return json({ success: false, noCharge: true, error: 'Not allowed.' }, 403);
   if (!/^application\/json\b/i.test(request.headers.get('content-type') || '')) {
     return json({ success: false, noCharge: true, error: 'The order couldn’t be read. Please refresh and try again.' }, 415);
   }
 
-  let order;
+  let body;
   try {
     const text = await request.text();
     if (text.length > LIMITS.bodyBytes) throw new BadRequest(BIG_ORDER);
-    order = priceOrder(JSON.parse(text), new Date(), env);
+    body = JSON.parse(text);
+  } catch (error) {
+    if (error instanceof BadRequest) return json({ success: false, noCharge: true, error: error.message }, 400);
+    return json({ success: false, noCharge: true, error: 'The order couldn’t be read. Please refresh and try again.' }, 400);
+  }
+
+  // Bots & card-testers: per-IP rate limits then a Turnstile check, both before
+  // any Clover call. Refuses with noCharge (no charge is possible yet).
+  const screen = await screenRequest(env, request, url, body, ctx);
+  if (!screen.ok) return screen.response;
+
+  let order;
+  try {
+    order = priceOrder(body, new Date(), env);
   } catch (error) {
     if (error instanceof BadRequest) return json({ success: false, noCharge: true, error: error.message }, 400);
     return json({ success: false, noCharge: true, error: 'The order couldn’t be read. Please refresh and try again.' }, 400);
@@ -369,7 +453,7 @@ async function createOrder(request, env, url, ctx) {
   // back (resolveResp) the moment we have an answer; print/reconcile keep
   // running in the same task, within BG_BUDGET_MS of the flow's start.
   const flow = {
-    env: env, request: request, order: order, store: store,
+    env: env, request: request, order: order, store: store, ip: screen.ip,
     s: storeSettings(env, store), urls: cloverUrls(env), flowStart: Date.now(),
     paySent: false, orderId: null, amount: null,
   };
@@ -386,9 +470,9 @@ async function createOrder(request, env, url, ctx) {
       resolveResp(json({ success: false, code: 'payment_unconfirmed', error: UNCONFIRMED }, 502));
       return sendAlert(flow.env, 'Online order hit an error after payment was sent — check Clover',
         'An online order failed with an unexpected error AFTER the payment request was sent, so we could not confirm whether it ' +
-        'went through.' + (flow.orderId ? ' Order: ' + flow.orderId + '.' : '') + ' Please check the Clover Orders app' +
-        (flow.order ? ' and call the customer at ' + flow.order.pickup.phone : '') + '. Error: ' +
-        String((error && error.message) || error).slice(0, 200));
+        'went through.' + (flow.orderId ? ' Order: ' + flow.orderId + '.' : '') + ' Please check the Clover Orders app: if it’s ' +
+        'paid, print the ticket from the Clover Orders app' + (flow.order ? ' and call the customer at ' + flow.order.pickup.phone : '') +
+        '. Error: ' + String((error && error.message) || error).slice(0, 200));
     }
     // Error before the pay request: no charge was made.
     resolveResp(json({ success: false, noCharge: true, error: 'Payment didn’t go through and no charge was made. Please try again.' }, 502));
@@ -504,12 +588,13 @@ async function settleOrder(c, resolveResp) {
       }
       if (check.status === 404) {
         console.log('create-order: order already removed by Clover, no charge', orderId);
-        return answerNoCharge(answer, env, paid);
+        answerNoCharge(answer, env, paid);
+        return recordFail(c);
       }
       if (clearDecline && check.ok && check.data && check.data.paymentState) {
         console.log('create-order: declined, order ' + check.data.paymentState + ' (no charge)', orderId);
         answerNoCharge(answer, env, paid);
-        return deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'The card was declined');
+        return Promise.all([recordFail(c), deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'The card was declined')]);
       }
       console.error('create-order: PAYMENT UNCONFIRMED ' + orderId + ', read ' +
         (check.ok ? (check.data && check.data.paymentState) : 'HTTP ' + check.status) + ', reconciling');
@@ -526,7 +611,7 @@ async function settleOrder(c, resolveResp) {
   // Clear decline (or other clear 4xx), not retried: no charge. Delete and tell
   // the customer (fast path).
   answerNoCharge(answer, env, paid);
-  return deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'The payment did not go through');
+  return Promise.all([recordFail(c), deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'The payment did not go through')]);
 }
 
 // The clear "no charge" answer: a card decline, an expired/used token, or a
@@ -822,7 +907,8 @@ async function reconcileUnclear(env, merchantUrl, auth, orderUrl, orderId, order
   console.error('RECONCILE ' + orderId + ': could not safely settle (state ' + state + ') — leaving the order, alerting staff');
   return sendAlert(env, 'Order ' + orderId + ' — payment unconfirmed, please check Clover',
     alertBody(order, orderId, amount, 'We could not confirm whether this order was paid, so it was LEFT in Clover. ' +
-      'Please check it in the Clover Orders app: if it’s paid, call the customer at ' + order.pickup.phone + '; if not, delete it.'));
+      'Please check it in the Clover Orders app: if it’s paid, print the ticket from the Clover Orders app and call the ' +
+      'customer at ' + order.pickup.phone + '; if not, delete it.'));
 }
 
 // Shared body for a staff alert email. Never any card data (the Worker only
@@ -841,6 +927,124 @@ function alertBody(order, orderId, amount, lead) {
 }
 
 function money(cents) { return '$' + (Math.round(cents) / 100).toFixed(2); }
+
+
+/* ---- Bots & card-testers: rate limits + Turnstile --------------------- */
+
+// Is Turnstile configured for this environment? (site key + secret present).
+function turnstileConfigured(env) { return !!(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET); }
+
+// Turnstile must be real-configured in production; production refuses test keys.
+function turnstileReady(env) {
+  if (!turnstileConfigured(env)) return false;
+  if (isProduction(env) && (isTurnstileTestKey(env.TURNSTILE_SITE_KEY) || isTurnstileTestKey(env.TURNSTILE_SECRET))) return false;
+  return true;
+}
+
+// Verify the Turnstile token with Cloudflare before any Clover call. Fails
+// closed in production (missing secret, test keys, or siteverify unreachable ->
+// refuse). In sandbox/preview without a secret, Turnstile is skipped.
+async function verifyTurnstile(env, token, request, url) {
+  const secret = env.TURNSTILE_SECRET || '';
+  if (isProduction(env)) {
+    if (!turnstileReady(env)) {
+      console.error('turnstile: not configured, or a TEST key, in production — refusing');
+      return { ok: false, status: 503, error: 'Online payment isn’t set up yet. Please call us at ' + PHONE + ' to order.' };
+    }
+  } else if (!secret) {
+    return { ok: true }; // sandbox/preview with no Turnstile set up: skip
+  }
+  if (typeof token !== 'string' || !token) {
+    return { ok: false, status: 400, error: BOT_REFUSED };
+  }
+
+  const form = new URLSearchParams();
+  form.set('secret', secret);
+  form.set('response', token);
+  const ip = request.headers.get('cf-connecting-ip');
+  if (ip) form.set('remoteip', ip);
+
+  let data;
+  try {
+    const res = await fetch(TURNSTILE.siteverifyUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+      signal: AbortSignal.timeout(TURNSTILE.timeoutMs),
+    });
+    data = await res.json();
+  } catch (error) {
+    console.error('turnstile: siteverify unreachable', String(error));
+    if (isProduction(env)) return { ok: false, status: 503, error: BOT_REFUSED };
+    return { ok: true }; // sandbox: don't block on an outage
+  }
+
+  if (!data || data.success !== true) {
+    console.error('turnstile: verification failed', (data && data['error-codes']) || 'no body');
+    return { ok: false, status: 400, error: BOT_REFUSED };
+  }
+  // A real secret: check the action, and that the challenge was served on this
+  // site. (The test secret returns hostname example.com and no action.)
+  if (!isTurnstileTestKey(secret)) {
+    if (data.action && data.action !== TURNSTILE.action) {
+      console.error('turnstile: action mismatch', data.action);
+      return { ok: false, status: 400, error: BOT_REFUSED };
+    }
+    if (url && data.hostname && data.hostname !== url.hostname) {
+      console.error('turnstile: hostname mismatch', data.hostname);
+      return { ok: false, status: 400, error: BOT_REFUSED };
+    }
+  }
+  return { ok: true };
+}
+
+// Call the per-IP RateLimiter Durable Object. Fails OPEN on any error or when
+// the binding/IP is missing (availability over strictness), logging it.
+async function rateLimit(env, ip, path, extra) {
+  const ns = env.RATE_LIMITER;
+  if (!ns || !ip) { if (!ns) console.error('rate-limit: RATE_LIMITER not bound — failing open'); return null; }
+  try {
+    const stub = ns.get(ns.idFromName(ip));
+    const payload = Object.assign(rateLimitSettings(env), extra || {});
+    const res = await stub.fetch('https://ratelimiter' + path, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (error) {
+    console.error('rate-limit: DO error — failing open', String(error));
+    return null;
+  }
+}
+
+// Record one failed payment for this IP (card-tester signal).
+function recordFail(c) {
+  return rateLimit(c.env, c.ip, '/fail').catch(function () {});
+}
+
+// Rate limits + Turnstile, before any Clover call. Returns { ok, ip } or
+// { ok:false, response }. An order attempt is recorded here; failed payments
+// are recorded later (recordFail). One staff email per IP per window.
+async function screenRequest(env, request, url, body, ctx) {
+  const ip = request.headers.get('cf-connecting-ip') || '';
+
+  const rl = await rateLimit(env, ip, '/order');
+  if (rl && (rl.orderOver || rl.failOver)) {
+    console.error('rate-limit: blocked (orders=' + rl.orders + ', fails=' + rl.fails + ')');
+    if (rl.shouldEmail) {
+      const alert = sendAlert(env, 'Online ordering — too many attempts from one address',
+        'An address hit the ordering rate limit (orders in the window: ' + rl.orders + ', failed payments in the window: ' + rl.fails +
+        '). If this is a card tester, the limit is holding them off; no action is needed. If a real customer is stuck, ask them to call ' + PHONE + '.')
+        .catch(function () {});
+      if (ctx && ctx.waitUntil) ctx.waitUntil(alert); else await alert;
+    }
+    return { ok: false, response: json({ success: false, noCharge: true, error: TOO_MANY }, 429) };
+  }
+
+  const human = await verifyTurnstile(env, body && body.turnstile, request, url);
+  if (!human.ok) return { ok: false, response: json({ success: false, noCharge: true, error: human.error }, human.status) };
+
+  return { ok: true, ip: ip };
+}
 
 
 /* ---- Pricing + validation --------------------------------------------- */
