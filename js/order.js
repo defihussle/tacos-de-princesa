@@ -988,7 +988,6 @@
   // date, from opening until 17:30. (The Worker checks the same.)
   function orderingNow(id, now) {
     if (!orderingOn() || !storeEnabled(id)) return { ok: false, reason: 'off' };
-    if (server.pickupAnyTime) return { ok: true }; // TEMPORARY test switch (sandbox previews only)
     return orderingWindow(LOCATIONS[id].hours, now, closedDates());
   }
 
