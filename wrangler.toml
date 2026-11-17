@@ -63,6 +63,15 @@ CLOVER_CURRENCY = "usd"
 CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
 CLOVER_PUBLIC_KEY = "b1115fedbe960f0ef8b1fa3b443a3b96"
 CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A"
+# Bot / card-tester defences (all tunable). Turnstile: the site key is public;
+# set TURNSTILE_SECRET in the dashboard (Settings > Variables and Secrets),
+# NEVER here. Production refuses Turnstile TEST keys.
+TURNSTILE_SITE_KEY = ""     # production Turnstile site key (real 0x... widget)
+HEALTH_TOKEN = ""           # set in the dashboard to read the DETAILED /api/health in production (x-health-token header)
+RATE_ORDER_LIMIT = "20"     # orders per IP per RATE_ORDER_WINDOW_S (generous: shared PATH IPs)
+RATE_ORDER_WINDOW_S = "60"
+RATE_FAIL_LIMIT = "5"       # failed payments per IP per RATE_FAIL_WINDOW_S (strict: card testers)
+RATE_FAIL_WINDOW_S = "600"
 
 # PREVIEWS (`npx wrangler preview`, the deploy command for preview builds)
 # don't inherit [vars]. Always the sandbox test merchant (USD only), so
@@ -78,6 +87,14 @@ CLOVER_CURRENCY = "usd"
 CLOVER_MERCHANT_ID = "2N9FRNJANSV31"
 CLOVER_PUBLIC_KEY = "b1115fedbe960f0ef8b1fa3b443a3b96"
 CLOVER_TAX_RATE_ID = "CTEF4PB5MHX8A" # sandbox "HST" 13%
+# Turnstile TEST keys (Cloudflare's documented dummy keys: always pass,
+# invisible). Public values, safe here; previews are sandbox-only.
+TURNSTILE_SITE_KEY = "1x00000000000000000000BB"
+TURNSTILE_SECRET = "1x0000000000000000000000000000000AA"
+RATE_ORDER_LIMIT = "20"
+RATE_ORDER_WINDOW_S = "60"
+RATE_FAIL_LIMIT = "5"
+RATE_FAIL_WINDOW_S = "600"
 
 # PRIVATE LIVE TEST: a separate Worker, tacos-de-princesa-livetest, on its
 # workers.dev address only (no custom domain), with the restaurant's LIVE
@@ -115,3 +132,8 @@ CLOVER_MERCHANT_ID = ""    # live merchant ID
 CLOVER_PUBLIC_KEY = ""     # live public (Ecommerce) key
 CLOVER_TAX_RATE_ID = ""    # live HST 13% tax rate ID
 CLOVER_ORDER_TYPE_ID = ""  # live order type "Website Pick Up 1 York" (DR9JRZ31WB6Y4); required in production
+TURNSTILE_SITE_KEY = ""    # livetest Turnstile site key (real 0x... widget); set TURNSTILE_SECRET in the dashboard
+RATE_ORDER_LIMIT = "20"
+RATE_ORDER_WINDOW_S = "60"
+RATE_FAIL_LIMIT = "5"
+RATE_FAIL_WINDOW_S = "600"
