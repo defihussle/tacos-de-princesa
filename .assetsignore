@@ -10,6 +10,7 @@ worker
 scripts
 .gitattributes
 docs
+tests
 
 # Local working files and editor/OS cruft (never part of the website)
 .local
