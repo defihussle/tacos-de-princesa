@@ -1,5 +1,5 @@
 name = "tacos-de-princesa"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-11-01"
 
 # Handles /api/* (online ordering); everything else is a static file
 main = "worker/index.js"
