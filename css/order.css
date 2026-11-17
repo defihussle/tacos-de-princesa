@@ -1349,6 +1349,39 @@ html:has(.item-dialog[open]) {
   color: var(--muted);
 }
 
+/* "We couldn't confirm your payment" / "we lost the connection": a clear
+   call-to-action box (not a decline). The Pay button is locked while it shows,
+   so the customer can't pay twice; the cart stays on screen. */
+.pay__notice {
+  margin: 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--accent);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-warm);
+  color: var(--text-dark);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.pay__notice[hidden] {
+  display: none;
+}
+
+.pay__notice strong {
+  font-weight: 700;
+}
+
+.pay__notice .pay__notice-call {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 
 /* ==========================================================================
    11. Toast + footer

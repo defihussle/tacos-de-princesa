@@ -1239,6 +1239,28 @@
   const payForm = $('[data-pay-form]');
   const payButton = $('[data-pay]');
   const payStatus = $('[data-pay-status]');
+  const payNotice = $('[data-pay-notice]');
+  // Once a payment can't be confirmed (or the connection drops), Pay stays
+  // locked for the rest of the visit so the customer can't be charged twice.
+  let payLocked = false;
+
+  // The restaurant phone as a tap-to-call link (CONFIG.phone is server config).
+  function callLink() {
+    return '<a class="pay__notice-call" href="tel:+1' + String(CONFIG.phone).replace(/\D/g, '') +
+      '">' + CONFIG.phone + '</a>';
+  }
+
+  // Lock Pay and show a clear call-us notice (not a decline, not the small
+  // status line). The cart and pickup details stay on screen. `message` is
+  // trusted page HTML; the only interpolation is the phone from CONFIG.
+  function lockPay(message) {
+    payLocked = true;
+    payButton.disabled = true;
+    payStatus.textContent = '';
+    payNotice.innerHTML = message;
+    payNotice.hidden = false;
+    payNotice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   // Clover element type -> mount point (its error line is '#<id>-errors')
   const CARD_FIELDS = [
@@ -1322,7 +1344,7 @@
         element.addEventListener('change', showFieldErrors);
         element.addEventListener('blur', showFieldErrors);
       });
-      payButton.disabled = false;
+      if (!payLocked) payButton.disabled = false;
     }).catch(function () {
       cloverStore = null;
       payStatus.textContent = 'Card payment couldn’t load. Check your connection and refresh the page.';
@@ -1400,7 +1422,7 @@
     }, function () {
       payStatus.textContent = 'We couldn’t reach the payment service. Please try again.';
     }).then(function () {
-      payButton.disabled = false;
+      if (!payLocked) payButton.disabled = false;
     });
   });
 
@@ -1429,14 +1451,21 @@
       if (result.success) {
         payStatus.textContent = '';
         placeOrder(result, lines, details);
+      } else if (result.code === 'payment_unconfirmed') {
+        // The Worker couldn't confirm the charge. Never let them pay again.
+        lockPay('<strong>We couldn’t confirm your payment.</strong> Please don’t try again or re-order — ' +
+          'call us and we’ll check right away so you aren’t charged twice.<br>' + callLink());
       } else {
+        // A decline or card-field problem: keep today's behaviour — the small
+        // status line, and Pay stays usable so they can fix the card and retry.
         payStatus.textContent = (result.error || 'Payment didn’t go through and no charge was made. Please try again.') +
           // Sandbox/preview only (the Worker never sends it in production)
           (result.detail ? ' [Sandbox: ' + result.detail + ']' : '');
       }
     }, function () {
-      // No answer: the order may or may not have gone through
-      payStatus.textContent = 'We lost the connection before your order was confirmed. Please call us at ' + CONFIG.phone + ' before trying again, so you aren’t charged twice.';
+      // No answer at all: the order may or may not have gone through, so lock Pay.
+      lockPay('<strong>We lost the connection before your order was confirmed.</strong> Please don’t try again — ' +
+        'call us to check on your order so you aren’t charged twice.<br>' + callLink());
     });
   }
 

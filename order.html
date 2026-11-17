@@ -192,6 +192,11 @@
             </form>
 
             <p class="form-status pay__status" role="status" data-pay-status></p>
+
+            <!-- Shown (and the Pay button locked for the rest of the visit) when
+                 a payment can't be confirmed or the connection drops, so the
+                 customer can't accidentally pay twice. Filled by js/order.js. -->
+            <div class="pay__notice" role="alert" data-pay-notice hidden></div>
           </div>
         </section>
 
