@@ -27,6 +27,21 @@ run_worker_first = ["/api/*"]
 [observability]
 enabled = true
 
+# Per-IP rate limiter (worker/ratelimit.js). SQLite-backed, so it runs on the
+# Workers Free plan. Previews and livetest get their own binding below (bindings
+# aren't shared); the migration creates the class once per Worker.
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[previews.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter"]
+
 # ---------------------------------------------------------------------------
 # Settings (what each one means: top of worker/index.js; going live:
 # docs/go-live.md). Three places, each with its own copy:
@@ -119,6 +134,14 @@ enabled = true
 
 [[env.livetest.send_email]]
 name = "ALERT_EMAIL"
+
+[[env.livetest.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[env.livetest.migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter"]
 
 [env.livetest.vars]
 ORDERING_OPEN = "false"
