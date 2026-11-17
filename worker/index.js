@@ -17,18 +17,25 @@
    it with the card token, then sends it to the kitchen printer. An order
    that isn't paid is deleted, so it never reaches the kitchen. Clover calls
    that are safe to repeat are retried on a rate-limit answer; the pay call is
-   retried once (same idempotency key). If a pay answer stays unclear, the
-   customer is told to call us (never to re-order) and the order is reconciled
-   in the background: paid -> printed, unpaid -> deleted, unknown -> left; and
-   staff are emailed. Stranded unpaid orders (can't be deleted) also email staff.
+   retried once (same idempotency key). After a failed/retried pay the order is
+   read: PAID is a success, a removed or unpaid order means no charge (clear
+   message), and only an unreadable order is "unconfirmed" — then the customer
+   is told to call us (never to re-order) and it's reconciled in the background
+   (paid -> printed, unpaid -> deleted, removed/unknown -> staff emailed).
+   The whole create/pay/settle flow is registered with ctx.waitUntil from the
+   start and the response awaits it, so a customer who closes the tab mid-payment
+   is still charged-and-printed or not-charged, never left silent. The customer
+   waits at most ~15 s for an answer; past that they get the "couldn't confirm"
+   answer and we settle in the background.
    Online orders are taken Mon-Fri from opening (10:30) until 17:30, never on
    holidays (worker/hours.js); pickup is the same day, ASAP or a 15-minute
    slot up to 17:45.
-   Printing happens after the customer has their answer (ctx.waitUntil): one
-   retry after ~5 s if Clover refuses, then the job's state is checked ~15 s
-   and ~26 s later. If it failed or hasn't printed, ONE alert email goes to
-   ALERT_EMAILS. (Cloudflare cancels waitUntil work 30 s after the response,
-   so the last check can't be later; a later check would need a Queue.)
+   Printing happens in that same background task: one retry if Clover refuses,
+   then the job's state is checked ~12 s and ~20 s after printing. If it failed
+   or hasn't printed, ONE alert email goes to ALERT_EMAILS. All background work
+   (and its alert) is timed to finish within ~30 s of the response OR the client
+   disconnect, which is when Cloudflare cancels waitUntil work; the staff alert
+   goes out before any part that might be cut. (A later check would need a Queue.)
    Each dish is sent as the Clover inventory item it is (worker/clover-ids.js):
    { item: { id }, modifications: [{ modifier: { id }, name, amount }], note },
    so Clover fills in the name, price, tax and labels (which route it to the
@@ -69,8 +76,10 @@
    - Timing: scheduled pickups print as soon as they're paid; holding them
      until 20 minutes before pickup needs a scheduled job (Cron Trigger plus
      storage such as KV or a Durable Object).
-   - If Clover creates the order but the connection drops before its reply,
-     that unpaid order can't be cleaned up here (its ID never arrives).
+   - If Clover creates the order but its OWN reply to the create call is lost
+     (a timeout before the ID arrives), that unpaid order can't be cleaned up
+     here — the ID never reaches us. (A dropped client connection is handled:
+     the flow runs under ctx.waitUntil and finishes server-side.)
    ========================================================================== */
 
 import { GROUPS, ITEMS, TAX_RATE } from './menu.js';
@@ -93,31 +102,48 @@ const LOCATIONS = {
 const SLOT_GRACE_MINUTES = 10;
 
 // Create and pay call timeouts (ms). The customer waits for these, so they're
-// kept short: the pay call can be attempted twice, so its cap is the smaller.
-const CREATE = { timeoutMs: 8000 };
+// kept short and also capped by CUSTOMER_DEADLINE_MS below.
+const CREATE = { timeoutMs: 7000 };
 const PAY = { timeoutMs: 6000 };
+
+// The customer never waits longer than this for an answer. If create + pay +
+// the confirming read would take longer, we stop, give the "couldn't confirm"
+// answer and finish in the background. READ_FLOOR_MS: the smallest window worth
+// doing the confirming read in; below it we skip straight to the background.
+const CUSTOMER_DEADLINE_MS = 15000;
+const READ_FLOOR_MS = 2000;
+
+// Background work (print checks, reconcile) runs under ctx.waitUntil, which
+// Cloudflare may cancel ~30 s after the response is sent OR the client
+// disconnects. The whole create -> pay -> settle flow is registered with
+// waitUntil, so it survives a disconnect; BG_BUDGET_MS is measured from the
+// flow's start and kept under 30 s so the final alert email still goes out.
+// ALERT_RESERVE_MS is the room left after the last Clover call for that email.
+const BG_BUDGET_MS = 27000;
+const ALERT_RESERVE_MS = 1500;
 
 // Retry Clover calls that are safe to repeat (create, print, order reads,
 // delete) when Clover rate-limits us: up to RETRY.attempts tries total, short
 // backoff, honouring Retry-After (capped). Clover allows ~16 req/s and 5
 // concurrent per token, so a lunch-rush burst can be briefly throttled (429);
-// a quick retry rides it out. Never used for the pay call (see createOrder).
+// a quick retry rides it out. Never used for the pay call (see settleOrder).
 const RETRY = { attempts: 3, backoffMs: [250, 750], retryAfterCapMs: 2000 };
 
-// Printing (see the header): Clover call timeout, retry delay, and when the
-// job is checked (ms after printing). Must finish within 30 s of the response.
-// checksReconcileMs/reconcileRetryMs are used when printing happens after a
-// background reconcile, which has already spent part of the 30 s budget.
+// Printing (see the header): Clover call timeouts and when the job is checked
+// (ms after printing). Timed so that, even if every Clover reply hits its
+// timeout, the last check and its alert finish before the ~30 s budget.
+// checksReconcileMs/reconcileRetryMs are the compressed schedule used when
+// printing happens after a background reconcile has spent part of the budget.
 const PRINT = {
-  timeoutMs: 6000, retryAfterMs: 5000, checksMs: [15000, 26000],
+  timeoutMs: 6000, stateTimeoutMs: 2500, retryAfterMs: 5000, checksMs: [12000, 20000],
   checksReconcileMs: [5000, 9000], reconcileRetryMs: 2000,
 };
 
-// When a pay answer is unclear, the customer is told we couldn't confirm it;
-// in the background we re-read the order's payment state a few times over
-// ~13 s, then settle it (print / delete / leave). This, plus any print checks
-// that follow a recovered order, must fit inside Cloudflare's ~30 s waitUntil.
-const RECONCILE = { checksMs: [3000, 8000, 13000], readTimeoutMs: 4000 };
+// When a pay answer can't be read, the customer is told we couldn't confirm it;
+// in the background we re-read the order's payment state a few times, then
+// settle it (print / delete / leave). settleReserveMs is the budget held back
+// after the last read to print or delete and email within the ~30 s.
+const RECONCILE = { checksMs: [3000, 8000, 13000], readTimeoutMs: 4000, settleReserveMs: 11000 };
 
 const LIMITS = {
   bodyBytes: 20000, linesMax: 30, qtyMax: 20, itemsMax: 60, modsMax: 30,
@@ -329,127 +355,162 @@ async function createOrder(request, env, url, ctx) {
       ' (' + (isProduction(env) ? 'production' : 'sandbox') + ')');
     return json({ success: false, error: 'Online payment isn’t set up yet. Please call us at ' + PHONE + ' to order.' }, 503);
   }
-  const s = storeSettings(env, store);
-  const urls = cloverUrls(env);
-  const auth = { authorization: 'Bearer ' + s.privateToken };
-  const merchantUrl = urls.api + '/v3/merchants/' + encodeURIComponent(s.merchantId);
+
+  // The whole create -> pay -> settle flow runs as ONE ctx.waitUntil task so a
+  // client disconnect can't cancel a charge mid-flight. The response is handed
+  // back (resolveResp) the moment we have an answer; print/reconcile keep
+  // running in the same task, within BG_BUDGET_MS of the flow's start.
+  const flow = {
+    env: env, request: request, order: order, store: store,
+    s: storeSettings(env, store), urls: cloverUrls(env), flowStart: Date.now(),
+  };
+  flow.auth = { authorization: 'Bearer ' + flow.s.privateToken };
+  flow.merchantUrl = flow.urls.api + '/v3/merchants/' + encodeURIComponent(flow.s.merchantId);
+
+  let resolveResp;
+  const response = new Promise(function (r) { resolveResp = r; });
+  const task = settleOrder(flow, resolveResp).catch(function (error) {
+    console.error('create-order: flow error', error);
+    resolveResp(json({ success: false, error: 'Payment didn’t go through and no charge was made. Please try again.' }, 502));
+  });
+  if (ctx && ctx.waitUntil) ctx.waitUntil(task); else await task;
+  return response;
+}
+
+// The Clover flow: create the order, pay it, answer the customer, then settle
+// (print / reconcile / delete) in the same task. `resolveResp` is called once
+// with the customer's Response; it may be called before the settle work ends.
+async function settleOrder(c, resolveResp) {
+  const env = c.env, order = c.order, s = c.s, urls = c.urls, auth = c.auth, merchantUrl = c.merchantUrl;
   const orderUrl = function (id) { return merchantUrl + '/orders/' + encodeURIComponent(id); };
+  const answerDeadline = c.flowStart + CUSTOMER_DEADLINE_MS;
+  const bgDeadline = c.flowStart + BG_BUDGET_MS;
+  let answered = false;
+  const answer = function (data, status, headers) {
+    if (answered) return;
+    answered = true;
+    resolveResp(json(data, status, headers));
+  };
+  // Timeout for a call the customer is waiting on: at most `want`, shrinking as
+  // the answer deadline nears, but never so small the call can't succeed.
+  const budget = function (want) { return Math.max(2500, Math.min(want, answerDeadline - Date.now())); };
 
   // 1. Create the order. Each line is the Clover item (Clover fills in its
   // name, price, tax and labels) plus its modifiers; no name or price here.
-  const orderCart = {
-    title: 'Online Pickup',
-    note: order.note,
-    lineItems: order.lineItems.map(cloverLine),
-  };
+  const orderCart = { title: 'Online Pickup', note: order.note, lineItems: order.lineItems.map(cloverLine) };
   if (s.orderTypeId) orderCart.orderType = { id: s.orderTypeId };
-
   const created = await cloverRetry(function () {
-    return clover(merchantUrl + '/atomic_order/orders', auth, { orderCart: orderCart }, 'POST', CREATE.timeoutMs);
+    return clover(merchantUrl + '/atomic_order/orders', auth, { orderCart: orderCart }, 'POST', budget(CREATE.timeoutMs));
   });
   const orderId = created.ok && created.data && created.data.id;
   if (!orderId) {
-    console.error('create-order: atomic order failed', store, created.status, created.error);
-    return json({ success: false, error: 'We couldn’t place your order and no charge was made. Please try again.' }, 502);
+    console.error('create-order: atomic order failed', c.store, created.status, created.error);
+    return answer({ success: false, error: 'We couldn’t place your order and no charge was made. Please try again.' }, 502);
   }
 
   // Clover's total should match ours; if not, don't charge
   if (typeof created.data.total === 'number' && Math.abs(created.data.total - order.total) > 1) {
     console.error('create-order: total mismatch', orderId, 'clover', created.data.total, 'ours', order.total);
-    await deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, order.total, 'The order total did not match Clover');
-    return json({ success: false, error: 'We couldn’t price your order and no charge was made. Please call us at ' + PHONE + '.' }, 500);
+    answer({ success: false, error: 'We couldn’t price your order and no charge was made. Please call us at ' + PHONE + '.' }, 500);
+    return deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, order.total, 'The order total did not match Clover');
   }
   const amount = typeof created.data.total === 'number' ? created.data.total : order.total;
 
-  // 2. Pay it. The clv_ token is single-use, so even if a first attempt
-  // charged and we retry, the second can't charge again (it gets
-  // token_already_used). One Idempotency-Key is made here and reused on the
-  // retry: Clover documents it for the create-a-charge family; pay-for-an-order
-  // isn't documented to honour it, so we never trust the retry's own answer —
-  // after any retry the real outcome is confirmed by reading the order below.
+  // 2. Pay it. The clv_ token is single-use, so even if a first attempt charged
+  // and we retry, the second can't charge again (it gets token_already_used).
+  // One Idempotency-Key is made here and reused on the retry: Clover documents
+  // it for the create-a-charge family; pay-for-an-order isn't documented to
+  // honour it, so we never trust the retry's own answer — after a retry the
+  // real outcome is confirmed by reading the order below.
   const payUrl = urls.ecom + '/v1/orders/' + encodeURIComponent(orderId) + '/pay';
   const payHeaders = Object.assign({
     'idempotency-key': crypto.randomUUID(),
-    'x-forwarded-for': request.headers.get('cf-connecting-ip') || '',
-    'user-agent': request.headers.get('user-agent') || 'tacos-de-princesa',
+    'x-forwarded-for': c.request.headers.get('cf-connecting-ip') || '',
+    'user-agent': c.request.headers.get('user-agent') || 'tacos-de-princesa',
   }, auth);
-  const payBody = {
-    source: order.source,
-    amount: amount,
-    currency: env.CLOVER_CURRENCY || 'cad',
-    ecomind: 'ecom',
-    metadata: { delete_order_on_failure: true },
-  };
+  const payBody = { source: order.source, amount: amount, currency: env.CLOVER_CURRENCY || 'cad', ecomind: 'ecom', metadata: { delete_order_on_failure: true } };
 
-  let paid = await clover(payUrl, payHeaders, payBody, 'POST', PAY.timeoutMs);
+  let paid = await clover(payUrl, payHeaders, payBody, 'POST', budget(PAY.timeoutMs));
   // Retry ONCE, same key, on an unclear answer (timeout/network, 429, 5xx).
   // Never retry a clear card decline.
   let retried = false;
   if (!paid.ok && payUnclear(paid)) {
     retried = true;
-    const backoff = paid.retryAfter != null ? Math.min(paid.retryAfter, RETRY.retryAfterCapMs) : 500;
+    const back = Math.min(paid.retryAfter != null ? paid.retryAfter : 500, 1500, Math.max(0, answerDeadline - Date.now()));
     console.error('create-order: pay unclear (HTTP ' + paid.status + '), retrying once with the same idempotency key', orderId);
-    await sleep(backoff);
-    paid = await clover(payUrl, payHeaders, payBody, 'POST', PAY.timeoutMs);
+    await sleep(back);
+    paid = await clover(payUrl, payHeaders, payBody, 'POST', budget(PAY.timeoutMs));
   }
 
-  if (!paid.ok) {
-    console.error('create-order: payment failed', orderId, paid.status, paid.error);
+  // Paid outright: answer now, print in the same background task.
+  if (paid.ok) {
+    console.log('ORDER ' + orderId + ' store=' + order.location + ' amount=' + amount);
+    answer({ success: true, orderId: orderId, total: amount });
+    return printAndVerify(env, merchantUrl, auth, orderId, order, { deadline: bgDeadline }).catch(function (error) {
+      console.error('PRINT CHECK ERROR ' + orderId + ': ' + error);
+    });
+  }
 
-    // Unclear if the answer itself was unclear, or if we retried and the second
-    // answer isn't a clean card decline — a retried token_already_used usually
-    // means the FIRST attempt actually charged. Read the order before deleting.
-    if (payUnclear(paid) || (retried && !isCardDecline(paid))) {
-      const check = await cloverRetry(function () { return clover(orderUrl(orderId), auth, null, 'GET', PAY.timeoutMs); });
+  console.error('create-order: payment failed', orderId, paid.status, paid.error);
+
+  // Read the order when the answer is unclear OR we retried (a retry can hide a
+  // charge the first attempt made). A readable order settles it outright: PAID
+  // -> success; 404 -> Clover already deleted it (no charge); any other state
+  // -> not paid, so delete and give the clear "no charge" answer. Only an
+  // unreadable order is truly unconfirmed.
+  const mustRead = payUnclear(paid) || retried;
+  if (mustRead) {
+    const left = answerDeadline - Date.now();
+    if (left >= READ_FLOOR_MS) {
+      const check = await cloverRetry(function () { return clover(orderUrl(orderId), auth, null, 'GET', Math.min(PAY.timeoutMs, left)); });
       if (check.ok && check.data && check.data.paymentState === 'PAID') {
         console.log('create-order: paid (confirmed after an unclear reply)', orderId);
-        return paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount);
+        answer({ success: true, orderId: orderId, total: amount });
+        return printAndVerify(env, merchantUrl, auth, orderId, order, { deadline: bgDeadline }).catch(function (error) {
+          console.error('PRINT CHECK ERROR ' + orderId + ': ' + error);
+        });
       }
-      // Not confirmed paid. Don't delete yet: tell the customer to call us (not
-      // to order again) and reconcile the order in the background.
-      console.error('create-order: PAYMENT UNCONFIRMED ' + orderId + ', reconciling (order read: ' +
-        (check.ok ? (check.data && check.data.paymentState) : 'HTTP ' + check.status) + ')');
-      if (ctx && ctx.waitUntil) {
-        ctx.waitUntil(reconcileUnclear(env, merchantUrl, auth, orderUrl(orderId), orderId, order, amount)
-          .catch(function (error) { console.error('RECONCILE ERROR ' + orderId + ': ' + error); }));
+      if (check.status === 404) {
+        console.log('create-order: order already removed by Clover, no charge', orderId);
+        return answerNoCharge(answer, env, paid);
       }
-      return json({ success: false, error: 'We couldn’t confirm your payment. Please don’t order again — call us at ' + PHONE + ' and we’ll check right away.' }, 502);
+      if (check.ok && check.data && check.data.paymentState) {
+        console.log('create-order: order ' + check.data.paymentState + ' (not paid), no charge', orderId);
+        answerNoCharge(answer, env, paid);
+        return deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'A payment did not go through');
+      }
+      console.error('create-order: PAYMENT UNCONFIRMED ' + orderId + ', order read HTTP ' + check.status + ', reconciling');
+    } else {
+      console.error('create-order: PAYMENT UNCONFIRMED ' + orderId + ', no answer budget to read, reconciling');
     }
-
-    // A clear answer that no charge was made: delete the order so it can't
-    // reach the kitchen, and tell the customer. deleteUnpaid alerts staff if
-    // the order can't be removed.
-    await deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'A payment was declined');
-
-    // Declines come back as 402 { code: 'card_declined', message: 'DECLINED: …' };
-    // Clover's message isn't customer-friendly, so it's only logged
-    const error = paid.error || {};
-    const declined = isCardDecline(paid);
-    const badSource = !declined && (error.code === 'token_already_used' ||
-      (error.code === 'invalid_request' && /source/i.test(error.message || '')));
-    return json({
-      success: false,
-      error: declined ? 'Your card was declined and no charge was made. Please try another card.'
-        : badSource ? 'Your card details expired. Please enter them again.'
-        : 'Payment didn’t go through and no charge was made. Please try again.',
-      // Sandbox only: Clover's own reason, for testing (e.g. the test
-      // merchant's per-card sale limit). Never shown to real customers.
-      detail: isProduction(env) ? undefined : String((typeof paid.error === 'string' ? paid.error : error.message) || '').slice(0, 200) || undefined,
-    }, declined ? 402 : badSource ? 400 : 502);
+    // Truly unknown: tell the customer to call us (never to re-order) and
+    // reconcile the order in the background.
+    answer({ success: false, code: 'payment_unconfirmed',
+      error: 'We couldn’t confirm your payment. Please don’t order again — call us at ' + PHONE + ' and we’ll check right away.' }, 502);
+    return reconcileUnclear(env, merchantUrl, auth, orderUrl(orderId), orderId, order, amount, bgDeadline);
   }
 
-  return paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount);
+  // Clear decline, not retried: delete and tell the customer (fast path).
+  answerNoCharge(answer, env, paid);
+  return deleteUnpaid(env, orderUrl(orderId), auth, orderId, order, amount, 'A payment was declined');
 }
 
-// 3. Paid: answer the customer now; print in the background. Printing never
-// delays or changes the customer's answer.
-function paidOrder(ctx, env, merchantUrl, auth, orderId, order, amount) {
-  console.log('ORDER ' + orderId + ' store=' + order.location + ' amount=' + amount);
-  const job = printAndVerify(env, merchantUrl, auth, orderId, order).catch(function (error) {
-    console.error('PRINT CHECK ERROR ' + orderId + ': ' + error);
-  });
-  if (ctx && ctx.waitUntil) ctx.waitUntil(job);
-  return json({ success: true, orderId: orderId, total: amount });
+// The clear "no charge" answer: a card decline, an expired/used token, or a
+// generic failure. Never a double-charge risk (the charge did not go through).
+function answerNoCharge(answer, env, paid) {
+  const error = paid.error || {};
+  const declined = isCardDecline(paid);
+  const badSource = !declined && (error.code === 'token_already_used' ||
+    (error.code === 'invalid_request' && /source/i.test(error.message || '')));
+  answer({
+    success: false,
+    error: declined ? 'Your card was declined and no charge was made. Please try another card.'
+      : badSource ? 'Your card details expired. Please enter them again.'
+      : 'Payment didn’t go through and no charge was made. Please try again.',
+    // Sandbox only: Clover's own reason, for testing (e.g. the test merchant's
+    // per-card sale limit). Never shown to real customers.
+    detail: isProduction(env) ? undefined : String((typeof paid.error === 'string' ? paid.error : error.message) || '').slice(0, 200) || undefined,
+  }, declined ? 402 : badSource ? 400 : 502);
 }
 
 // Send the order to the kitchen printer, retry once, then check it really
@@ -459,6 +520,8 @@ async function printAndVerify(env, merchantUrl, auth, orderId, order, opts) {
   opts = opts || {};
   const checksMs = opts.checksMs || PRINT.checksMs;
   const retryMs = opts.retryMs != null ? opts.retryMs : PRINT.retryAfterMs;
+  // Hard stop so the final alert still goes out before Cloudflare cancels us.
+  const deadline = opts.deadline || (Date.now() + BG_BUDGET_MS);
   const started = Date.now();
   const where = ' (store ' + order.location + ')';
   const print = function () {
@@ -468,20 +531,23 @@ async function printAndVerify(env, merchantUrl, auth, orderId, order, opts) {
   };
 
   let printed = await print();
-  if (!(printed.ok && printed.data && printed.data.id)) {
+  // Retry the print only if there's still room for the retry and an alert.
+  if (!(printed.ok && printed.data && printed.data.id) && Date.now() + retryMs + PRINT.timeoutMs + ALERT_RESERVE_MS <= deadline) {
     console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ', attempt 1: retrying in ' + Math.round(retryMs / 1000) + ' s', printed.error);
     await sleep(retryMs);
     printed = await print();
   }
   const jobId = printed.ok && printed.data && printed.data.id;
   if (!jobId) {
-    console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ', attempt 2: print it from Clover by hand', printed.error);
-    return sendPrintAlert(env, orderId, order, 'Clover refused the print request twice (' + errorText(printed) + ').');
+    console.error('PRINT FAILED ' + orderId + where + ', HTTP ' + printed.status + ': print it from Clover by hand', printed.error);
+    return sendPrintAlert(env, orderId, order, 'Clover refused the print request (' + errorText(printed) + ').');
   }
   console.log('PRINT SENT ' + orderId + where + ', job ' + jobId);
 
   let state = 'CREATED';
   for (const at of checksMs) {
+    // Only do this check if it plus its timeout plus the alert fit the budget.
+    if (started + at + PRINT.stateTimeoutMs + ALERT_RESERVE_MS > deadline) break;
     await sleep(started + at - Date.now());
     state = await printState(merchantUrl, auth, jobId);
     if (state === 'DONE') { console.log('PRINTED ' + orderId + ', job ' + jobId); return; }
@@ -503,7 +569,7 @@ const PRINT_STATES = ['CREATED', 'PRINTING', 'FAILED', 'DONE'];
 async function printState(merchantUrl, auth, jobId) {
   const r = await cloverRetry(function () {
     return clover(merchantUrl + '/print_event/' + encodeURIComponent(jobId),
-      Object.assign({ 'user-agent': 'tacos-de-princesa' }, auth), null, 'GET', 4000);
+      Object.assign({ 'user-agent': 'tacos-de-princesa' }, auth), null, 'GET', PRINT.stateTimeoutMs);
   });
   if (r.status === 404) return 'DONE';
   if (r.ok && r.data && PRINT_STATES.indexOf(r.data.state) !== -1) return r.data.state;
@@ -656,22 +722,31 @@ function isCardDecline(paid) {
 }
 
 // The customer was told we couldn't confirm their payment. Re-read the order's
-// payment state a few times, then settle it: PAID -> print + alert staff;
-// unpaid -> delete + alert staff; unknown -> leave + alert staff. Runs in
-// ctx.waitUntil; this plus any print checks must finish within Cloudflare's
-// ~30 s budget (see RECONCILE / PRINT.checksReconcileMs).
-async function reconcileUnclear(env, merchantUrl, auth, orderUrl, orderId, order, amount) {
-  const started = Date.now();
+// payment state, then settle it: PAID -> alert staff + print; removed (404,
+// Clover's delete_order_on_failure) or unpaid -> delete if needed + alert (no
+// charge); unknown -> leave + alert. Runs in the same ctx.waitUntil task and
+// must finish within `deadline`; reads are clamped to leave settleReserveMs to
+// act. For a PAID order the staff alert goes out BEFORE printing, so the "call
+// the customer" message is sent even if the print checks get cut.
+async function reconcileUnclear(env, merchantUrl, auth, orderUrl, orderId, order, amount, deadline) {
+  deadline = deadline || (Date.now() + BG_BUDGET_MS);
+  const readUntil = deadline - RECONCILE.settleReserveMs;
   let state = 'unknown';
+  let reads = 0;
+  const started = Date.now();
   for (const at of RECONCILE.checksMs) {
-    await sleepUntil(started + at);
+    if (started + at > readUntil && reads > 0) break; // out of read budget
+    await sleepUntil(Math.min(started + at, readUntil));
     const check = await cloverRetry(function () { return clover(orderUrl, auth, null, 'GET', RECONCILE.readTimeoutMs); });
+    reads++;
+    if (check.status === 404) { state = 'removed'; break; }
     if (check.ok && check.data) {
       if (check.data.paymentState === 'PAID') { state = 'PAID'; break; }
       state = 'unpaid';
     } else {
       state = 'unknown';
     }
+    if (Date.now() >= readUntil) break;
   }
 
   if (state === 'PAID') {
@@ -679,8 +754,14 @@ async function reconcileUnclear(env, merchantUrl, auth, orderUrl, orderId, order
     await sendAlert(env, 'Order ' + orderId + ' was paid after the customer was told it couldn’t be confirmed',
       alertBody(order, orderId, amount, 'This order WAS paid, but the customer saw “we couldn’t confirm your payment.” ' +
         'Please call them at ' + order.pickup.phone + ' to confirm the pickup. The kitchen ticket is printing now.'));
-    await printAndVerify(env, merchantUrl, auth, orderId, order, { checksMs: PRINT.checksReconcileMs, retryMs: PRINT.reconcileRetryMs });
-    return;
+    return printAndVerify(env, merchantUrl, auth, orderId, order,
+      { checksMs: PRINT.checksReconcileMs, retryMs: PRINT.reconcileRetryMs, deadline: deadline });
+  }
+  if (state === 'removed') {
+    console.log('RECONCILE ' + orderId + ': Clover already removed the order (no charge)');
+    return sendAlert(env, 'Unconfirmed order ' + orderId + ' was removed by Clover (no charge)',
+      alertBody(order, orderId, amount, 'The payment did not go through, so Clover removed this order automatically. ' +
+        'No charge went through. If the customer calls, they can order again.'));
   }
   if (state === 'unpaid') {
     console.log('RECONCILE ' + orderId + ': still unpaid — deleting the order');
@@ -693,7 +774,7 @@ async function reconcileUnclear(env, merchantUrl, auth, orderUrl, orderId, order
     return;
   }
   console.error('RECONCILE ' + orderId + ': payment state still unknown — leaving the order, alerting staff');
-  await sendAlert(env, 'Order ' + orderId + ' — payment unconfirmed, please check Clover',
+  return sendAlert(env, 'Order ' + orderId + ' — payment unconfirmed, please check Clover',
     alertBody(order, orderId, amount, 'We could not confirm whether this order was paid, so it was LEFT in Clover. ' +
       'Please check it in the Clover Orders app: if it’s paid, call the customer at ' + order.pickup.phone + '; if not, delete it.'));
 }
