@@ -2,11 +2,12 @@
 # (/api/* responses are Worker-generated; their headers are set in
 # worker/index.js. This file is config, not a served file.)
 #
-# CSP ships in Report-Only first: the browser reports violations without
-# blocking, so we can watch a real sandbox order (Clover SDK + card iframes +
-# the reCAPTCHA badge Clover injects) and the other pages, then enforce by
-# renaming the header to Content-Security-Policy. Production Clover hosts can
-# only be proven in Phase 5 on livetest (docs/go-live.md).
+# CSP is ENFORCED. It was verified Report-Only on the preview first: a real
+# sandbox order loaded the Clover SDK, all four card iframes, the reCAPTCHA
+# badge Clover injects, and Turnstile with zero violations. The SANDBOX Clover
+# hosts are proven; the PRODUCTION Clover hosts (checkout.clover.com, api/scl)
+# are allow-listed but can only be proven in Phase 5 on livetest — check the
+# browser console there for CSP errors (docs/go-live.md).
 
 /*
   X-Content-Type-Options: nosniff
@@ -18,22 +19,22 @@
 # Order page: tight, but allows Clover (sandbox + production), the reCAPTCHA
 # badge Clover injects (google/gstatic), Turnstile, and Google Fonts.
 /order.html
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw=' https://checkout.sandbox.dev.clover.com https://checkout.clover.com https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.google.com https://www.gstatic.com; frame-src https://checkout.sandbox.dev.clover.com https://checkout.clover.com https://challenges.cloudflare.com https://www.google.com; connect-src 'self' https://checkout.sandbox.dev.clover.com https://apisandbox.dev.clover.com https://scl-sandbox.dev.clover.com https://checkout.clover.com https://api.clover.com https://scl.clover.com https://challenges.cloudflare.com https://www.google.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw=' https://checkout.sandbox.dev.clover.com https://checkout.clover.com https://challenges.cloudflare.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://www.google.com https://www.gstatic.com; frame-src https://checkout.sandbox.dev.clover.com https://checkout.clover.com https://challenges.cloudflare.com https://www.google.com; connect-src 'self' https://checkout.sandbox.dev.clover.com https://apisandbox.dev.clover.com https://scl-sandbox.dev.clover.com https://checkout.clover.com https://api.clover.com https://scl.clover.com https://challenges.cloudflare.com https://www.google.com
 
 # Home page (served at / and /index.html): no third-party scripts or frames.
 /
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'
 
 /index.html
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'
 
 # Catering: adds EmailJS (script from jsDelivr, send to api.emailjs.com).
 /catering.html
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw=' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.emailjs.com
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw=' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.emailjs.com
 
 # Redirect stubs: only their inline redirect script runs.
 /menu.html
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'sha256-FHKUIn9s+036o7BaUHnkMUc4pHSTZckGHt+fz7xN3Fk='; style-src 'none'; img-src 'none'; connect-src 'none'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'sha256-FHKUIn9s+036o7BaUHnkMUc4pHSTZckGHt+fz7xN3Fk='; style-src 'none'; img-src 'none'; connect-src 'none'
 
 /contact.html
-  Content-Security-Policy-Report-Only: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'sha256-XWQMJj4fRW8WXBlTbzzBSu9KkcPiJD8lHHtDWLSEEPI='; style-src 'none'; img-src 'none'; connect-src 'none'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'sha256-XWQMJj4fRW8WXBlTbzzBSu9KkcPiJD8lHHtDWLSEEPI='; style-src 'none'; img-src 'none'; connect-src 'none'
