@@ -166,7 +166,7 @@ const PAUSED = 'Online ordering is paused, please call ' + PHONE + '.';
 // Shown when a payment can't be confirmed: the customer must NOT re-order.
 const UNCONFIRMED = 'We couldn’t confirm your payment. Please don’t order again — call us at ' + PHONE + ' and we’ll check right away.';
 const TOO_MANY = 'Too many attempts. Please wait a few minutes or call us at ' + PHONE + '.';
-const BOT_REFUSED = 'We couldn’t verify your browser. Please refresh the page and try again.';
+const BOT_REFUSED = 'We couldn’t verify your browser. Please refresh the page and try again, or call us at ' + PHONE + '.';
 
 // Turnstile (a bot check on our own /api/create-order, the only place a charge
 // can happen). The secret is a dashboard secret; the site key is public and
@@ -983,14 +983,15 @@ async function verifyTurnstile(env, token, request, url) {
     console.error('turnstile: verification failed', (data && data['error-codes']) || 'no body');
     return { ok: false, status: 400, error: BOT_REFUSED };
   }
-  // A real secret: check the action, and that the challenge was served on this
-  // site. (The test secret returns hostname example.com and no action.)
+  // A real secret: require the action and the serving host to match EXACTLY
+  // (not just "if present"). The test secret returns hostname example.com and
+  // no action, so these checks are skipped for it.
   if (!isTurnstileTestKey(secret)) {
-    if (data.action && data.action !== TURNSTILE.action) {
+    if (data.action !== TURNSTILE.action) {
       console.error('turnstile: action mismatch', data.action);
       return { ok: false, status: 400, error: BOT_REFUSED };
     }
-    if (url && data.hostname && data.hostname !== url.hostname) {
+    if (!url || data.hostname !== url.hostname) {
       console.error('turnstile: hostname mismatch', data.hostname);
       return { ok: false, status: 400, error: BOT_REFUSED };
     }
@@ -998,13 +999,26 @@ async function verifyTurnstile(env, token, request, url) {
   return { ok: true };
 }
 
-// Call the per-IP RateLimiter Durable Object. Fails OPEN on any error or when
-// the binding/IP is missing (availability over strictness), logging it.
+// The rate-limit key: the full IPv4 address, or the /64 prefix for IPv6 (so a
+// tester can't rotate addresses inside one /64).
+function rateKey(ip) {
+  if (!ip || ip.indexOf(':') === -1) return ip; // IPv4 (or empty)
+  const addr = ip.split('%')[0];                // strip any zone id
+  const sides = addr.split('::');
+  const head = sides[0] ? sides[0].split(':') : [];
+  const tail = sides.length > 1 && sides[1] ? sides[1].split(':') : [];
+  const fill = Math.max(0, 8 - head.length - tail.length);
+  const groups = head.concat(new Array(fill).fill('0')).concat(tail);
+  return groups.slice(0, 4).map(function (g) { return (g || '0').toLowerCase(); }).join(':') + '::/64';
+}
+
+// Call the per-IP RateLimiter Durable Object (keyed by rateKey). Fails OPEN on
+// any error or when the binding/IP is missing (availability over strictness).
 async function rateLimit(env, ip, path, extra) {
   const ns = env.RATE_LIMITER;
   if (!ns || !ip) { if (!ns) console.error('rate-limit: RATE_LIMITER not bound — failing open'); return null; }
   try {
-    const stub = ns.get(ns.idFromName(ip));
+    const stub = ns.get(ns.idFromName(rateKey(ip)));
     const payload = Object.assign(rateLimitSettings(env), extra || {});
     const res = await stub.fetch('https://ratelimiter' + path, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
@@ -1021,11 +1035,16 @@ function recordFail(c) {
   return rateLimit(c.env, c.ip, '/fail').catch(function () {});
 }
 
-// Rate limits + Turnstile, before any Clover call. Returns { ok, ip } or
-// { ok:false, response }. An order attempt is recorded here; failed payments
-// are recorded later (recordFail). One staff email per IP per window.
+// Turnstile then the rate limiter, before any Clover call. Turnstile goes first
+// so a request with no/bad token is refused WITHOUT touching the Durable Object
+// (a bot can't run the DO up). An order attempt is recorded only once past
+// Turnstile; failed payments are recorded later (recordFail). Returns { ok, ip }
+// or { ok:false, response }. One staff email per IP per window.
 async function screenRequest(env, request, url, body, ctx) {
   const ip = request.headers.get('cf-connecting-ip') || '';
+
+  const human = await verifyTurnstile(env, body && body.turnstile, request, url);
+  if (!human.ok) return { ok: false, response: json({ success: false, noCharge: true, error: human.error }, human.status) };
 
   const rl = await rateLimit(env, ip, '/order');
   if (rl && (rl.orderOver || rl.failOver)) {
@@ -1039,9 +1058,6 @@ async function screenRequest(env, request, url, body, ctx) {
     }
     return { ok: false, response: json({ success: false, noCharge: true, error: TOO_MANY }, 429) };
   }
-
-  const human = await verifyTurnstile(env, body && body.turnstile, request, url);
-  if (!human.ok) return { ok: false, response: json({ success: false, noCharge: true, error: human.error }, human.status) };
 
   return { ok: true, ip: ip };
 }
