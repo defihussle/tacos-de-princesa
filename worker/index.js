@@ -209,10 +209,21 @@ export default {
   },
 };
 
+// Basic security headers on every API response (the static pages get these,
+// plus a per-page CSP, from the _headers file). HSTS is host-scoped and
+// harmless on the preview's workers.dev host; it matters on the custom domain.
+const SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'x-frame-options': 'DENY',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'strict-transport-security': 'max-age=15552000',
+};
+
 function json(body, status, headers) {
   return new Response(JSON.stringify(body), {
     status: status || 200,
-    headers: Object.assign({ 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, headers),
+    headers: Object.assign({ 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }, SECURITY_HEADERS, headers),
   });
 }
 
